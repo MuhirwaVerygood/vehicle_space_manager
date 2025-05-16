@@ -1,6 +1,6 @@
 
-import api from './api';
 import { ParkingSlot, SlotRequest, SlotRequestFormData, PaginatedResponse } from '../types/parking';
+import { authorizedAPI } from './api';
 
 export const ParkingService = {
   // Parking Slot Services
@@ -11,12 +11,12 @@ export const ParkingService = {
       ...(search ? { search } : {}),
       ...(onlyAvailable ? { status: 'available' } : {})
     };
-    const response = await api.get('/parking-slots', { params });
+    const response = await authorizedAPI.get('/parking-slots', { params });
     return response.data;
   },
 
   async getSlotById(id: string): Promise<ParkingSlot> {
-    const response = await api.get(`/parking-slots/${id}`);
+    const response = await authorizedAPI.get(`/parking-slots/${id}`);
     return response.data;
   },
 
@@ -27,17 +27,17 @@ export const ParkingService = {
     size: string, 
     location: string 
   }): Promise<ParkingSlot[]> {
-    const response = await api.post('/parking-slots/bulk', slotsData);
+    const response = await authorizedAPI.post('/parking-slots/bulk', slotsData);
     return response.data;
   },
 
   async updateSlot(id: string, slotData: Partial<ParkingSlot>): Promise<ParkingSlot> {
-    const response = await api.put(`/parking-slots/${id}`, slotData);
+    const response = await authorizedAPI.put(`/parking-slots/${id}`, slotData);
     return response.data;
   },
 
   async deleteSlot(id: string): Promise<void> {
-    await api.delete(`/parking-slots/${id}`);
+    await authorizedAPI.delete(`/parking-slots/${id}`);
   },
 
   // Slot Request Services
@@ -48,31 +48,31 @@ export const ParkingService = {
       ...(search ? { search } : {}),
       ...(status ? { status } : {})
     };
-    const response = await api.get('/slot-requests', { params });
-    return response.data;
+    const response = await authorizedAPI.get('/slot-requests', { params });
+    return response.data.data;
   },
 
   async createSlotRequest(requestData: SlotRequestFormData): Promise<SlotRequest> {
-    const response = await api.post('/slot-requests', requestData);
-    return response.data;
+    const response = await authorizedAPI.post('/slot-requests', requestData);
+    return response.data.data;
   },
 
   async updateSlotRequest(id: string, requestData: Partial<SlotRequestFormData>): Promise<SlotRequest> {
-    const response = await api.put(`/slot-requests/${id}`, requestData);
-    return response.data;
+    const response = await authorizedAPI.put(`/slot-requests/${id}`, requestData);
+    return response.data.data;
   },
 
   async deleteSlotRequest(id: string): Promise<void> {
-    await api.delete(`/slot-requests/${id}`);
+    await authorizedAPI.delete(`/slot-requests/${id}`);
   },
 
   async approveSlotRequest(id: string, slotId?: string): Promise<SlotRequest> {
-    const response = await api.put(`/slot-requests/${id}/approve`, { slotId });
+    const response = await authorizedAPI.put(`/slot-requests/${id}/approve`, { slotId });
     return response.data;
   },
 
   async rejectSlotRequest(id: string, reason?: string): Promise<SlotRequest> {
-    const response = await api.put(`/slot-requests/${id}/reject`, { reason });
+    const response = await authorizedAPI.put(`/slot-requests/${id}/reject`, { reason });
     return response.data;
   }
 };

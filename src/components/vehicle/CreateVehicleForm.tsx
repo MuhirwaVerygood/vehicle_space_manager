@@ -24,8 +24,8 @@ const CreateVehicleForm: React.FC<CreateVehicleFormProps> = ({
 }) => {
   const { toast } = useToast();
   const [plateNumber, setPlateNumber] = useState("");
-  const [vehicleType, setVehicleType] = useState<"car" | "motorcycle" | "truck" | "">("");
-  const [size, setSize] = useState<"small" | "medium" | "large" | "">("");
+  const [vehicleType, setVehicleType] = useState<"CAR" | "MOTORCYCLE" | "TRUCK" | "">("");
+  const [size, setSize] = useState<"SMALL" | "MEDIUM" | "LARGE" | "">("");
   const [color, setColor] = useState("");
   const [model, setModel] = useState("");
   
@@ -43,8 +43,8 @@ const CreateVehicleForm: React.FC<CreateVehicleFormProps> = ({
     
     const vehicleData: VehicleFormData = {
       plateNumber,
-      vehicleType: vehicleType as "car" | "motorcycle" | "truck",
-      size: size as "small" | "medium" | "large",
+      vehicleType: vehicleType as "CAR" | "MOTORCYCLE" | "TRUCK",
+      size: size as "SMALL" | "MEDIUM" | "LARGE",
       attributes: {
         color,
         model,
@@ -75,16 +75,16 @@ const CreateVehicleForm: React.FC<CreateVehicleFormProps> = ({
         </Label>
         <Select 
           value={vehicleType} 
-          onValueChange={(value: "car" | "motorcycle" | "truck") => setVehicleType(value)}
+          onValueChange={(value: "CAR" | "MOTORCYCLE" | "TRUCK") => setVehicleType(value)}
           required
         >
           <SelectTrigger className="col-span-3">
             <SelectValue placeholder="Select vehicle type" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="car">Car</SelectItem>
-            <SelectItem value="motorcycle">Motorcycle</SelectItem>
-            <SelectItem value="truck">Truck</SelectItem>
+            <SelectItem value="CAR">Car</SelectItem>
+            <SelectItem value="MOTORCYCLE">Motorcycle</SelectItem>
+            <SelectItem value="TRUCK">Truck</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -94,16 +94,16 @@ const CreateVehicleForm: React.FC<CreateVehicleFormProps> = ({
         </Label>
         <Select 
           value={size} 
-          onValueChange={(value: "small" | "medium" | "large") => setSize(value)}
+          onValueChange={(value: "SMALL" | "MEDIUM" | "LARGE") => setSize(value)}
           required
         >
           <SelectTrigger className="col-span-3">
             <SelectValue placeholder="Select size" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="small">Small</SelectItem>
-            <SelectItem value="medium">Medium</SelectItem>
-            <SelectItem value="large">Large</SelectItem>
+            <SelectItem value="SMALL">Small</SelectItem>
+            <SelectItem value="MEDIUM">Medium</SelectItem>
+            <SelectItem value="LARGE">Large</SelectItem>
           </SelectContent>
         </Select>
       </div>

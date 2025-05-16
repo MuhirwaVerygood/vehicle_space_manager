@@ -45,6 +45,8 @@ export interface SlotRequestFormData {
 }
 
 export interface PaginatedResponse<T> {
+  [x: string]: SetStateAction<number>;
+  [x: string]: SetStateAction<SlotRequest[]>;
   data: T[];
   meta: {
     totalItems: number;

@@ -1,5 +1,4 @@
-
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import AppLayout from "../components/layouts/AppLayout";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -35,17 +34,19 @@ import {
   SelectValue,
 } from "../components/ui/select";
 import { Label } from "../components/ui/label";
-import { Car, Plus, Search, Edit, Trash2, Check, X } from "lucide-react";
+import { Car, Plus, Search, Edit, Trash2, Check, X, RefreshCw } from "lucide-react";
 import { useToast } from "../hooks/use-toast";
 import { useAuth } from "../contexts/AuthContext";
-import { Vehicle } from "../types/vehicle";
+import { Vehicle, VehicleFormData, PaginatedResponse, VehicleType, Size } from "../types/vehicle";
 import CreateVehicleForm from "../components/vehicle/CreateVehicleForm";
+import { VehicleService } from "@/services/vehicle.service";
 
 const Vehicles: React.FC = () => {
   const { toast } = useToast();
   const { authState } = useAuth();
-  const isAdmin = authState.user?.role === "admin";
+  const isAdmin = authState.user?.role === "ADMIN";
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -55,73 +56,60 @@ const Vehicles: React.FC = () => {
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
   
-  // Form state
+  // Vehicle data state
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [totalItems, setTotalItems] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Form state for edit dialog
   const [plateNumber, setPlateNumber] = useState("");
-  const [vehicleType, setVehicleType] = useState<"car" | "motorcycle" | "truck" | "">("");
-  const [size, setSize] = useState<"small" | "medium" | "large" | "">("");
+  const [vehicleType, setVehicleType] = useState<VehicleType | "">("");
+  const [size, setSize] = useState<Size | "">("");
   const [color, setColor] = useState("");
   const [model, setModel] = useState("");
-  
-  // Mock data for vehicles
-  const mockVehicles: Vehicle[] = [
-    {
-      id: "1",
-      userId: "user1",
-      plateNumber: "ABC123",
-      vehicleType: "car",
-      size: "medium",
-      attributes: { color: "Blue", model: "Toyota Corolla" },
-      status: "approved",
-      createdAt: "2023-05-10T10:30:00Z",
-      updatedAt: "2023-05-10T10:30:00Z",
-    },
-    {
-      id: "2",
-      userId: "user1",
-      plateNumber: "XYZ789",
-      vehicleType: "motorcycle",
-      size: "small",
-      attributes: { color: "Red", model: "Honda CBR" },
-      status: "pending",
-      createdAt: "2023-05-12T14:15:00Z",
-      updatedAt: "2023-05-12T14:15:00Z",
-    },
-    {
-      id: "3",
-      userId: "user2",
-      plateNumber: "DEF456",
-      vehicleType: "truck",
-      size: "large",
-      attributes: { color: "Black", model: "Ford F-150" },
-      status: "rejected",
-      createdAt: "2023-05-14T09:45:00Z",
-      updatedAt: "2023-05-14T16:30:00Z",
-    }
-  ];
-  
-  // Filter vehicles based on user role and search term
-  const filteredVehicles = mockVehicles.filter(vehicle => {
-    // If admin, show all vehicles, else show only the user's vehicles
-    const roleFilter = isAdmin ? true : vehicle.userId === authState.user?.id;
-    
-    // Search filter
-    const searchFilter = 
-      vehicle.plateNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      vehicle.vehicleType.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (vehicle.attributes.color && vehicle.attributes.color.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (vehicle.attributes.model && vehicle.attributes.model.toLowerCase().includes(searchTerm.toLowerCase()));
-    
-    return roleFilter && searchFilter;
-  });
-  
+
   // Pagination
   const itemsPerPage = 10;
-  const totalPages = Math.ceil(filteredVehicles.length / itemsPerPage);
-  const paginatedVehicles = filteredVehicles.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-  
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+
+  // Debounce search term
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
+
+  // Fetch vehicles
+  const fetchVehicles = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response: PaginatedResponse<Vehicle> = await VehicleService.getVehicles(
+        currentPage,
+        itemsPerPage,
+        debouncedSearchTerm || undefined
+      );
+      setVehicles(response.items);
+      setTotalItems(response.total);
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.message || "Failed to fetch vehicles";
+      setError(errorMessage);
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentPage, debouncedSearchTerm]);
+
+  useEffect(() => {
+    fetchVehicles();
+  }, [fetchVehicles]);
+
   const resetForm = () => {
     setPlateNumber("");
     setVehicleType("");
@@ -131,78 +119,141 @@ const Vehicles: React.FC = () => {
     setRejectionReason("");
     setSelectedVehicle(null);
   };
-  
-  const handleCreateVehicle = (formData: any) => {
-    // In a real app, this would make an API call
-    toast({
-      title: "Vehicle submitted for approval",
-      description: `Vehicle ${formData.plateNumber} has been submitted and is pending approval.`,
-    });
-    setIsCreateDialogOpen(false);
-    resetForm();
+
+  const handleCreateVehicle = async (formData: VehicleFormData) => {
+    try {
+      const data = await VehicleService.createVehicle(formData);
+      toast({
+        title: "Vehicle submitted for approval",
+        description: `Vehicle ${formData.plateNumber} has been submitted and is pending approval.`,
+      });
+      setIsCreateDialogOpen(false);
+      resetForm();
+      fetchVehicles();
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.message || "Error happened when registering vehicle";
+      toast({
+        title: "Vehicle registration failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    }
   };
-  
-  const handleEditVehicle = () => {
-    // In a real app, this would make an API call
-    toast({
-      title: "Vehicle updated",
-      description: `Vehicle ${plateNumber} has been updated successfully.`,
-    });
-    setIsEditDialogOpen(false);
-    resetForm();
+
+  const handleEditVehicle = async () => {
+    if (!selectedVehicle) return;
+    try {
+      const formData: Partial<VehicleFormData> = {
+        plateNumber,
+        vehicleType: vehicleType || undefined,
+        size: size || undefined,
+        attributes: {
+          color: color || undefined,
+          model: model || undefined,
+        },
+      };
+      await VehicleService.updateVehicle(selectedVehicle.id, formData);
+      toast({
+        title: "Vehicle updated",
+        description: `Vehicle ${plateNumber} has been updated successfully.`,
+      });
+      setIsEditDialogOpen(false);
+      resetForm();
+      fetchVehicles();
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.message || "Failed to update vehicle";
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    }
   };
-  
-  const handleDeleteVehicle = () => {
-    // In a real app, this would make an API call
-    toast({
-      title: "Vehicle deleted",
-      description: `Vehicle ${selectedVehicle?.plateNumber} has been removed.`,
-    });
-    setIsDeleteDialogOpen(false);
-    setSelectedVehicle(null);
+
+  const handleDeleteVehicle = async () => {
+    if (!selectedVehicle) return;
+    try {
+      await VehicleService.deleteVehicle(selectedVehicle.id);
+      toast({
+        title: "Vehicle deleted",
+        description: `Vehicle ${selectedVehicle.plateNumber} has been removed.`,
+      });
+      setIsDeleteDialogOpen(false);
+      setSelectedVehicle(null);
+      fetchVehicles();
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.message || "Failed to delete vehicle";
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    }
   };
-  
-  const handleApproveVehicle = () => {
-    // In a real app, this would make an API call
-    toast({
-      title: "Vehicle approved",
-      description: `Vehicle ${selectedVehicle?.plateNumber} has been approved.`,
-    });
-    setIsApproveDialogOpen(false);
-    setSelectedVehicle(null);
+
+  const handleApproveVehicle = async () => {
+    if (!selectedVehicle) return;
+    try {
+      await VehicleService.approveVehicle(selectedVehicle.id);
+      toast({
+        title: "Vehicle approved",
+        description: `Vehicle ${selectedVehicle.plateNumber} has been approved.`,
+      });
+      setIsApproveDialogOpen(false);
+      setSelectedVehicle(null);
+      fetchVehicles();
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.message || "Failed to approve vehicle";
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    }
   };
-  
-  const handleRejectVehicle = () => {
-    // In a real app, this would make an API call
-    toast({
-      title: "Vehicle rejected",
-      description: `Vehicle ${selectedVehicle?.plateNumber} has been rejected.`,
-    });
-    setIsRejectDialogOpen(false);
-    setRejectionReason("");
-    setSelectedVehicle(null);
+
+  const handleRejectVehicle = async () => {
+    if (!selectedVehicle) return;
+    try {
+      await VehicleService.rejectVehicle(selectedVehicle.id, rejectionReason);
+      toast({
+        title: "Vehicle rejected",
+        description: `Vehicle ${selectedVehicle.plateNumber} has been rejected.`,
+      });
+      setIsRejectDialogOpen(false);
+      setRejectionReason("");
+      setSelectedVehicle(null);
+      fetchVehicles();
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.message || "Failed to reject vehicle";
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    }
   };
-  
+
   const openEditDialog = (vehicle: Vehicle) => {
     setSelectedVehicle(vehicle);
     setPlateNumber(vehicle.plateNumber);
     setVehicleType(vehicle.vehicleType);
     setSize(vehicle.size);
-    setColor(vehicle.attributes.color || "");
-    setModel(vehicle.attributes.model || "");
+    setColor(vehicle.attributes?.color || "");
+    setModel(vehicle.attributes?.model || "");
     setIsEditDialogOpen(true);
   };
-  
+
   const openDeleteDialog = (vehicle: Vehicle) => {
     setSelectedVehicle(vehicle);
     setIsDeleteDialogOpen(true);
   };
-  
+
   const openApproveDialog = (vehicle: Vehicle) => {
     setSelectedVehicle(vehicle);
     setIsApproveDialogOpen(true);
   };
-  
+
   const openRejectDialog = (vehicle: Vehicle) => {
     setSelectedVehicle(vehicle);
     setIsRejectDialogOpen(true);
@@ -210,10 +261,8 @@ const Vehicles: React.FC = () => {
 
   const getStatusBadge = (status?: string) => {
     if (!status) return null;
-    
     let bgColor = "";
     let textColor = "";
-    
     switch (status) {
       case "approved":
         bgColor = "bg-green-100";
@@ -231,7 +280,6 @@ const Vehicles: React.FC = () => {
         bgColor = "bg-gray-100";
         textColor = "text-gray-600";
     }
-    
     return (
       <span className={`px-2 py-1 rounded-full text-xs font-medium ${bgColor} ${textColor}`}>
         {status.charAt(0).toUpperCase() + status.slice(1)}
@@ -249,31 +297,34 @@ const Vehicles: React.FC = () => {
               {isAdmin ? "Manage all registered vehicles" : "Manage your registered vehicles here"}
             </p>
           </div>
-          
-          {!isAdmin && (
-            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="btn-hover">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Vehicle
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Add New Vehicle</DialogTitle>
-                  <DialogDescription>
-                    Enter the details of your vehicle below. Your submission will need admin approval before it's active.
-                  </DialogDescription>
-                </DialogHeader>
-                <CreateVehicleForm 
-                  onSubmit={handleCreateVehicle} 
-                  onCancel={() => setIsCreateDialogOpen(false)} 
-                />
-              </DialogContent>
-            </Dialog>
-          )}
+          <div className="flex items-center space-x-2">
+            {!isAdmin && (
+              <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button className="btn-hover">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Vehicle
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add New Vehicle</DialogTitle>
+                    <DialogDescription>
+                      Enter the details of your vehicle below. Your submission will need admin approval.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <CreateVehicleForm
+                    onSubmit={handleCreateVehicle}
+                    onCancel={() => setIsCreateDialogOpen(false)}
+                  />
+                </DialogContent>
+              </Dialog>
+            )}
+            <Button variant="outline" size="icon" onClick={fetchVehicles} disabled={isLoading}>
+              <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+            </Button>
+          </div>
         </div>
-        
         <Card>
           <CardHeader className="pb-3">
             <div className="flex justify-between items-center">
@@ -296,7 +347,17 @@ const Vehicles: React.FC = () => {
             </div>
           </CardHeader>
           <CardContent>
-            {filteredVehicles.length > 0 ? (
+            {isLoading ? (
+              <div className="flex justify-center py-12">
+                <p className="text-muted-foreground">Loading vehicles...</p>
+              </div>
+            ) : error ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <Car size={48} className="text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium">Failed to load vehicles</h3>
+                <p className="text-sm text-muted-foreground">{error}</p>
+              </div>
+            ) : vehicles.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -310,11 +371,9 @@ const Vehicles: React.FC = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedVehicles.map((vehicle) => (
+                  {vehicles.map((vehicle) => (
                     <TableRow key={vehicle.id}>
-                      <TableCell className="font-medium">
-                        {vehicle.plateNumber}
-                      </TableCell>
+                      <TableCell className="font-medium">{vehicle.plateNumber}</TableCell>
                       <TableCell className="capitalize">
                         <div className="flex items-center">
                           <Car className="mr-2 h-4 w-4 text-muted-foreground" />
@@ -322,8 +381,8 @@ const Vehicles: React.FC = () => {
                         </div>
                       </TableCell>
                       <TableCell className="capitalize">{vehicle.size}</TableCell>
-                      <TableCell>{vehicle.attributes.color}</TableCell>
-                      <TableCell>{vehicle.attributes.model}</TableCell>
+                      <TableCell>{vehicle.attributes?.color}</TableCell>
+                      <TableCell>{vehicle.attributes?.model}</TableCell>
                       <TableCell>{getStatusBadge(vehicle.status)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end space-x-2">
@@ -347,7 +406,6 @@ const Vehicles: React.FC = () => {
                               </Button>
                             </>
                           )}
-                          
                           {(!isAdmin || vehicle.status === "approved") && (
                             <>
                               <Button
@@ -380,7 +438,7 @@ const Vehicles: React.FC = () => {
                 <p className="text-sm text-muted-foreground mb-4">
                   {searchTerm
                     ? "No vehicles match your search criteria."
-                    : isAdmin 
+                    : isAdmin
                       ? "No vehicles have been registered yet."
                       : "You haven't added any vehicles yet."}
                 </p>
@@ -392,13 +450,11 @@ const Vehicles: React.FC = () => {
                 )}
               </div>
             )}
-            
-            {filteredVehicles.length > 0 && totalPages > 1 && (
+            {vehicles.length > 0 && totalPages > 1 && (
               <div className="flex justify-between items-center mt-4">
                 <div className="text-sm text-muted-foreground">
                   Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
-                  {Math.min(currentPage * itemsPerPage, filteredVehicles.length)} of{" "}
-                  {filteredVehicles.length} vehicles
+                  {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} vehicles
                 </div>
                 <div className="flex space-x-2">
                   <Button
@@ -423,7 +479,6 @@ const Vehicles: React.FC = () => {
           </CardContent>
         </Card>
       </div>
-      
       {/* Edit Vehicle Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
@@ -449,17 +504,17 @@ const Vehicles: React.FC = () => {
               <Label htmlFor="edit-vehicleType" className="text-right">
                 Vehicle Type
               </Label>
-              <Select 
-                value={vehicleType} 
-                onValueChange={(value: "car" | "motorcycle" | "truck") => setVehicleType(value)}
+              <Select
+                value={vehicleType}
+                onValueChange={(value: VehicleType | "") => setVehicleType(value)}
               >
                 <SelectTrigger className="col-span-3">
                   <SelectValue placeholder="Select vehicle type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="car">Car</SelectItem>
-                  <SelectItem value="motorcycle">Motorcycle</SelectItem>
-                  <SelectItem value="truck">Truck</SelectItem>
+                  <SelectItem value={VehicleType.CAR}>Car</SelectItem>
+                  <SelectItem value={VehicleType.MOTORCYCLE}>Motorcycle</SelectItem>
+                  <SelectItem value={VehicleType.TRUCK}>Truck</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -467,17 +522,17 @@ const Vehicles: React.FC = () => {
               <Label htmlFor="edit-size" className="text-right">
                 Size
               </Label>
-              <Select 
-                value={size} 
-                onValueChange={(value: "small" | "medium" | "large") => setSize(value)}
+              <Select
+                value={size}
+                onValueChange={(value: Size | "") => setSize(value)}
               >
                 <SelectTrigger className="col-span-3">
                   <SelectValue placeholder="Select size" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="small">Small</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="large">Large</SelectItem>
+                  <SelectItem value={Size.SMALL}>Small</SelectItem>
+                  <SelectItem value={Size.MEDIUM}>Medium</SelectItem>
+                  <SelectItem value={Size.LARGE}>Large</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -512,7 +567,6 @@ const Vehicles: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      
       {/* Delete Vehicle Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent>
@@ -536,7 +590,6 @@ const Vehicles: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      
       {/* Approve Vehicle Dialog */}
       {isAdmin && (
         <Dialog open={isApproveDialogOpen} onOpenChange={setIsApproveDialogOpen}>
@@ -562,7 +615,6 @@ const Vehicles: React.FC = () => {
           </DialogContent>
         </Dialog>
       )}
-      
       {/* Reject Vehicle Dialog */}
       {isAdmin && (
         <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>

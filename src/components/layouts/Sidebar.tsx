@@ -26,37 +26,37 @@ const Sidebar: React.FC = () => {
       name: "Dashboard",
       path: "/dashboard",
       icon: <Home size={20} />,
-      roles: ["user", "admin"],
+      roles: ["USER", "ADMIN"],
     },
     {
       name: "Vehicles",
       path: "/vehicles",
       icon: <Car size={20} />,
-      roles: ["user", "admin"],
+      roles: ["USER", "ADMIN"],
     },
     {
       name: "Parking Slots",
       path: "/slots",
       icon: <ParkingMeter size={20} />,
-      roles: ["user", "admin"],
+      roles: ["USER", "ADMIN"],
     },
     {
       name: "Slot Requests",
       path: "/requests",
       icon: <Inbox size={20} />,
-      roles: ["user", "admin"],
+      roles: ["USER", "ADMIN"],
     },
     {
       name: "User Management",
       path: "/users",
       icon: <Users size={20} />,
-      roles: ["admin"],
+      roles: ["ADMIN"],
     },
     {
       name: "Settings",
       path: "/settings",
       icon: <Settings size={20} />,
-      roles: ["user", "admin"],
+      roles: ["USER", "ADMIN"],
     },
   ];
 
