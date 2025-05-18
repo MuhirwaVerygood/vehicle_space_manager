@@ -1,3 +1,4 @@
+import { SetStateAction } from 'react';
 
 export interface ParkingSlot {
   id: string;
@@ -18,23 +19,24 @@ export interface ParkingSlot {
 export interface SlotRequest {
   id: string;
   userId: string;
-  userName?: string;
+  userName: string;  // Make sure this matches in both places
   vehicleId: string;
   vehiclePlate: string;
   vehicleType: string;
-  preferredLocation: string;
+  preferredLocation?: string;
   startDate: string;
   endDate: string;
-  status: "pending" | "approved" | "rejected";
+  status: 'pending' | 'approved' | 'rejected';
   notes?: string;
-  rejectionReason?: string;
   assignedSlot?: {
     id: string;
     slotNumber: string;
   };
+  rejectionReason?: string;
   createdAt: string;
   updatedAt: string;
 }
+
 
 export interface SlotRequestFormData {
   vehicleId: string;
@@ -44,14 +46,11 @@ export interface SlotRequestFormData {
   notes?: string;
 }
 
+
 export interface PaginatedResponse<T> {
-  [x: string]: SetStateAction<number>;
-  [x: string]: SetStateAction<SlotRequest[]>;
-  data: T[];
-  meta: {
-    totalItems: number;
-    currentPage: number;
-    totalPages: number;
-    itemsPerPage: number;
-  };
+  items: T[];
+  total: number;
+  currentPage?: number;
+  totalPages?: number;
+  itemsPerPage?: number;
 }

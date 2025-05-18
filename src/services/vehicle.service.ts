@@ -5,6 +5,8 @@ export const VehicleService = {
   async getVehicles(page = 1, limit = 10, search?: string): Promise<PaginatedResponse<Vehicle>> {
     const params = { page, limit, ...(search ? { search } : {}) };
     const response = await authorizedAPI.get('/vehicles', { params });
+    console.log(response);
+    
     return response.data.data;
   },
 

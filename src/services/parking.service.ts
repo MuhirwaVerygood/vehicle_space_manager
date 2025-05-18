@@ -27,7 +27,7 @@ export const ParkingService = {
     size: string, 
     location: string 
   }): Promise<ParkingSlot[]> {
-    const response = await authorizedAPI.post('/parking-slots/bulk', slotsData);
+    const response = await authorizedAPI.post('/parking-slots/bulk', slotsData);    
     return response.data;
   },
 
@@ -49,11 +49,12 @@ export const ParkingService = {
       ...(status ? { status } : {})
     };
     const response = await authorizedAPI.get('/slot-requests', { params });
-    return response.data.data;
+    return response.data.data;  
   },
 
   async createSlotRequest(requestData: SlotRequestFormData): Promise<SlotRequest> {
     const response = await authorizedAPI.post('/slot-requests', requestData);
+        
     return response.data.data;
   },
 

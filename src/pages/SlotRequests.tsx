@@ -50,18 +50,8 @@ import { Vehicle } from "../types/vehicle";
 import { ParkingService } from "@/services/parking.service";
 import { VehicleService } from "@/services/vehicle.service";
 import { SlotRequestFormData } from "@/types/parking";
+import { ParkingSlot } from "@/types/parking";
 
-
-export interface ParkingSlot {
-  id: string;
-  slotNumber: string;
-  vehicleType: string;
-  size: string;
-  location: string;
-  status: 'available' | 'occupied' | 'reserved';
-  createdAt: string;
-  updatedAt: string;
-}
 
 export interface SlotRequest {
   id: string;
