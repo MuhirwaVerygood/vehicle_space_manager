@@ -219,7 +219,7 @@ const SlotRequests: React.FC = () => {
     setSelectedRequest(null);
   };
 
-  const handleCreateRequest = async () => {
+  const  handleCreateRequest = async () => {
     if (!selectedVehicleId || !startDate || !endDate) {
       toast({
         title: "Error",
@@ -253,6 +253,70 @@ const SlotRequests: React.FC = () => {
       });
     }
   };
+
+
+  const handleDeleteRequest = async (requestId: string) => {
+  try {
+    await ParkingService.deleteSlotRequest(requestId);
+    toast({
+      title: "Request deleted",
+      description: "Your parking slot request has been deleted.",
+    });
+    fetchSlotRequests();
+  } catch (err: any) {
+    const errorMessage = err.response?.data?.message || "Failed to delete request";
+    toast({
+      title: "Error",
+      description: errorMessage,
+      variant: "destructive",
+    });
+  }
+};
+
+
+const handleUpdateRequest = (request: SlotRequest) => {
+  setSelectedRequest(request);
+  setSelectedVehicleId(request.vehicleId);
+  setPreferredLocation(request.preferredLocation || "");
+  setStartDate(request.startDate);
+  setEndDate(request.endDate);
+  setNotes(request.notes || "");
+  setIsCreateDialogOpen(true);
+};
+
+
+const handleUpdateSubmit = async () => {
+  if (!selectedRequest) return;
+  
+  try {
+    const requestData: SlotRequestFormData = {
+      vehicleId: selectedVehicleId,
+      preferredLocation,
+      startDate,
+      endDate,
+      notes,
+    };
+    
+    await ParkingService.updateSlotRequest(selectedRequest.id, requestData);
+    
+    toast({
+      title: "Request updated",
+      description: "Your parking slot request has been updated successfully.",
+    });
+    
+    setIsCreateDialogOpen(false);
+    resetForm();
+    fetchSlotRequests();
+  } catch (err: any) {
+    const errorMessage = err.response?.data?.message || "Failed to update request";
+    toast({
+      title: "Error",
+      description: errorMessage,
+      variant: "destructive",
+    });
+  }
+};
+
 
   const handleApproveRequest = async () => {
     if (!selectedRequest || !assignedSlotId) return;
@@ -500,77 +564,110 @@ const SlotRequests: React.FC = () => {
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody>
-                  {slotRequests.map((request) => (
-                    <TableRow key={request.id}>
-                      {isAdmin && <TableCell>{request.userName}</TableCell>}
-                      <TableCell className="font-medium">{request.vehiclePlate}</TableCell>
-                      <TableCell className="capitalize">{request.vehicleType}</TableCell>
-                      <TableCell>{request.preferredLocation}</TableCell>
-                      <TableCell>
-                        <div className="text-sm">
-                          <div>From: {request.startDate}</div>
-                          <div>To: {request.endDate}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
-                            request.status
-                          )}`}
-                        >
-                          {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex space-x-2">
-                          {isAdmin && request.status === "pending" && (
-                            <>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="text-green-600 border-green-600 hover:bg-green-50"
-                                onClick={() => openApproveDialog(request)}
-                              >
-                                <Check className="h-4 w-4 mr-1" />
-                                Approve
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="text-red-600 border-red-600 hover:bg-red-50"
-                                onClick={() => openRejectDialog(request)}
-                              >
-                                <X className="h-4 w-4 mr-1" />
-                                Reject
-                              </Button>
-                            </>
-                          )}
-                          {!isAdmin && request.status === "approved" && request.assignedSlot && (
-                            <Button variant="outline" size="sm">
-                              Slot: {request.assignedSlot.slotNumber}
-                            </Button>
-                          )}
-                          {!isAdmin && request.status === "rejected" && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="text-red-600"
-                              onClick={() => {
-                                toast({
-                                  title: "Rejection reason",
-                                  description: request.rejectionReason || "No reason provided",
-                                });
-                              }}
-                            >
-                              View Reason
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
+        <TableBody>
+  {slotRequests.map((request) => (
+    <TableRow key={request.id}>
+      {/* Show user column only for admin */}
+      {isAdmin && <TableCell>{request.userName}</TableCell>}
+      
+      {/* Always show these columns for all users */}
+      <TableCell className="font-medium">{request.vehiclePlate}</TableCell>
+      <TableCell className="capitalize">{request.vehicleType}</TableCell>
+      <TableCell>{request.preferredLocation || "-"}</TableCell>
+      <TableCell>
+        <div className="text-sm">
+          <div>From: {request.startDate}</div>
+          <div>To: {request.endDate}</div>
+        </div>
+      </TableCell>
+      <TableCell>
+        <span
+          className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
+            request.status
+          )}`}
+        >
+          {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
+        </span>
+      </TableCell>
+      <TableCell>
+        <div className="flex space-x-2">
+          {isAdmin && request.status === "pending" && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-green-600 border-green-600 hover:bg-green-50"
+                onClick={() => openApproveDialog(request)}
+              >
+                <Check className="h-4 w-4 mr-1" />
+                Approve
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-red-600 border-red-600 hover:bg-red-50"
+                onClick={() => openRejectDialog(request)}
+              >
+                <X className="h-4 w-4 mr-1" />
+                Reject
+              </Button>
+            </>
+          )}
+          
+          {/* Show update/delete buttons for non-admin users */}
+          {!isAdmin && (
+            <>
+             <Button
+  variant="outline"
+  size="sm"
+  className="text-blue-600 border-blue-600 hover:bg-blue-50"
+  onClick={() => handleUpdateRequest(request)}  // Changed from request.id to request
+>
+  <RefreshCw className="h-4 w-4 mr-1" />
+  Update
+</Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-red-600 border-red-600 hover:bg-red-50"
+                onClick={() => handleDeleteRequest(request.id)}
+              >
+                <X className="h-4 w-4 mr-1" />
+                Delete
+              </Button>
+            </>
+          )}
+
+          {/* Show slot info for approved requests */}
+          {!isAdmin && request.status === "approved" && request.assignedSlot && (
+            <Button variant="outline" size="sm">
+              Slot: {request.assignedSlot.slotNumber}
+            </Button>
+          )}
+          
+          {/* Show view reason for rejected requests */}
+          {!isAdmin && request.status === "rejected" && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-red-600"
+              onClick={() => {
+                toast({
+                  title: "Rejection reason",
+                  description: request.rejectionReason || "No reason provided",
+                });
+              }}
+            >
+              View Reason
+            </Button>
+          )}
+        </div>
+      </TableCell>
+    </TableRow>
+  ))}
+</TableBody>
+
               </Table>
             ) : (
               <div className="flex flex-col items-center justify-center py-12">
@@ -624,6 +721,128 @@ const SlotRequests: React.FC = () => {
           </CardContent>
         </Card>
       </div>
+
+
+{/* Update slot request dto */}
+<Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+  <DialogContent>
+    <DialogHeader>
+      <DialogTitle>
+        {selectedRequest ? "Update Parking Slot Request" : "Request Parking Slot"}
+      </DialogTitle>
+      <DialogDescription>
+        {selectedRequest 
+          ? "Update your parking slot request details below"
+          : "Submit a request for a parking slot for your vehicle"}
+      </DialogDescription>
+    </DialogHeader>
+    <div className="grid gap-4 py-4">
+      {/* Vehicle Selection */}
+      <div className="grid grid-cols-4 items-center gap-4">
+        <Label htmlFor="vehicleId" className="text-right">
+          Vehicle
+        </Label>
+        <Select
+          value={selectedVehicleId}
+          onValueChange={setSelectedVehicleId}
+          disabled={isVehiclesLoading || userVehicles.length === 0}
+        >
+          <SelectTrigger className="col-span-3">
+            <SelectValue placeholder="Select your vehicle" />
+          </SelectTrigger>
+          <SelectContent>
+            {isVehiclesLoading ? (
+              <SelectItem value="loading" disabled>
+                Loading vehicles...
+              </SelectItem>
+            ) : userVehicles.length > 0 ? (
+              userVehicles.map((vehicle) => (
+                <SelectItem key={vehicle.id} value={vehicle.id}>
+                  {vehicle.plateNumber} ({vehicle.vehicleType})
+                </SelectItem>
+              ))
+            ) : (
+              <SelectItem value="none" disabled>
+                No approved vehicles available
+              </SelectItem>
+            )}
+          </SelectContent>
+        </Select>
+      </div>
+      
+      {/* Preferred Location */}
+      <div className="grid grid-cols-4 items-center gap-4">
+        <Label htmlFor="preferredLocation" className="text-right">
+          Preferred Location
+        </Label>
+        <Input
+          id="preferredLocation"
+          value={preferredLocation}
+          onChange={(e) => setPreferredLocation(e.target.value)}
+          className="col-span-3"
+          placeholder="e.g. North Wing, Near Elevator"
+        />
+      </div>
+      
+      {/* Start Date */}
+      <div className="grid grid-cols-4 items-center gap-4">
+        <Label htmlFor="startDate" className="text-right">
+          Start Date
+        </Label>
+        <Input
+          id="startDate"
+          type="date"
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+          className="col-span-3"
+        />
+      </div>
+      
+      {/* End Date */}
+      <div className="grid grid-cols-4 items-center gap-4">
+        <Label htmlFor="endDate" className="text-right">
+          End Date
+        </Label>
+        <Input
+          id="endDate"
+          type="date"
+          value={endDate}
+          onChange={(e) => setEndDate(e.target.value)}
+          className="col-span-3"
+        />
+      </div>
+      
+      {/* Notes */}
+      <div className="grid grid-cols-4 items-center gap-4">
+        <Label htmlFor="notes" className="text-right">
+          Additional Notes
+        </Label>
+        <Textarea
+          id="notes"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          className="col-span-3"
+          placeholder="Any special requirements or requests"
+        />
+      </div>
+    </div>
+    <DialogFooter>
+      <Button variant="outline" onClick={() => {
+        setIsCreateDialogOpen(false);
+        resetForm();
+      }}>
+        Cancel
+      </Button>
+      <Button
+        onClick={() => selectedRequest ? handleUpdateSubmit() : handleCreateRequest()}
+        disabled={isVehiclesLoading || !selectedVehicleId || !startDate || !endDate}
+      >
+        {selectedRequest ? "Update Request" : "Submit Request"}
+      </Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+
 
       {/* Approve Request Dialog */}
       <Dialog open={isApproveDialogOpen} onOpenChange={setIsApproveDialogOpen}>
