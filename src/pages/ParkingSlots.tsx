@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from "react";
+// ParkingSlots.tsx
+import React, { useState, useEffect, useCallback } from "react";
+import debounce from "lodash.debounce";
 import AppLayout from "../components/layouts/AppLayout";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -58,6 +60,7 @@ const ParkingSlots: React.FC = () => {
   const [total, setTotal] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -68,7 +71,8 @@ const ParkingSlots: React.FC = () => {
   const [selectedSlot, setSelectedSlot] = useState<ParkingSlot | null>(null);
 
   // Form state for creating/editing slots
-  const [slotPrefix, setSlotPrefix] = useState("A");
+  const [slotNumber, setSlotNumber] = useState(""); // For single slot
+  const [slotPrefix, setSlotPrefix] = useState("A"); // For bulk slots
   const [slotCount, setSlotCount] = useState(1);
   const [vehicleType, setVehicleType] = useState<"CAR" | "MOTORCYCLE" | "TRUCK" | "">("");
   const [size, setSize] = useState<"SMALL" | "MEDIUM" | "LARGE" | "">("");
@@ -77,36 +81,61 @@ const ParkingSlots: React.FC = () => {
 
   const itemsPerPage = 10;
 
-  // Fetch slots
+  // Debounce search term
+  const debouncedSetSearchTerm = useCallback(
+    debounce((value: string) => {
+      setDebouncedSearchTerm(value);
+    }, 300),
+    []
+  );
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value);
+    debouncedSetSearchTerm(e.target.value);
+    setCurrentPage(1); // Reset to first page on search
+  };
+
+  // Centralized slot refresh function
+  const refreshSlots = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response: PaginatedResponse<ParkingSlot> = await ParkingService.getSlots(
+        currentPage,
+        itemsPerPage,
+        debouncedSearchTerm || undefined
+      );
+      setSlots(response.items || response.data?.items || []);
+      setTotal(response.total || response.data?.total || 0);
+    } catch (err: any) {
+      const message = err.response?.data?.message || "Failed to fetch parking slots";
+      setError(message);
+      toast({
+        title: "Error",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch slots on page or search change
   useEffect(() => {
-    const fetchSlots = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const response: PaginatedResponse<ParkingSlot> = await ParkingService.getSlots(
-          currentPage,
-          itemsPerPage,
-          searchTerm || undefined
-        );
-        setSlots(response.items || response.data?.items || []);
-        setTotal(response.total || response.data?.total || 0);
-      } catch (err: any) {
-        setError(err.response?.data?.message || "Failed to fetch parking slots");
-        toast({
-          title: "Error",
-          description: err.response?.data?.message || "Failed to fetch parking slots",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchSlots();
-  }, [currentPage, searchTerm, toast]);
+    refreshSlots();
+  }, [currentPage, debouncedSearchTerm]);
+
+  // Adjust currentPage if total changes
+  useEffect(() => {
+    if (total > 0 && currentPage > Math.ceil(total / itemsPerPage)) {
+      setCurrentPage(Math.max(1, Math.ceil(total / itemsPerPage)));
+    }
+  }, [total, currentPage, itemsPerPage]);
 
   const totalPages = Math.ceil(total / itemsPerPage);
 
   const resetForm = () => {
+    setSlotNumber("");
     setSlotPrefix("A");
     setSlotCount(1);
     setVehicleType("");
@@ -127,28 +156,50 @@ const ParkingSlots: React.FC = () => {
     }
 
     try {
-      const slotsData = {
-        count: slotCount,
-        prefix: slotPrefix,
-        vehicleType,
-        size,
-        location,
-      };
-      await ParkingService.createSlots(slotsData);
-      toast({
-        title: "Parking slots created",
-        description: `${slotCount} parking slots with prefix ${slotPrefix} have been added.`,
-      });
+      if (slotCount === 1) {
+       
+        const slotData = {
+          vehicleType,
+          size,
+          location,
+          status: "AVAILABLE",
+        };
+        await ParkingService.createSlot(slotData);
+        toast({
+          title: "Parking slot created",
+          description: `Slot ${slotNumber} has been added.`,
+        });
+      } else {
+        // Bulk slot creation
+        if (!slotPrefix) {
+          toast({
+            title: "Validation Error",
+            description: "Please provide a prefix for bulk slot creation.",
+            variant: "destructive",
+          });
+          return;
+        }
+        const slotsData = {
+          count: slotCount,
+          prefix: slotPrefix,
+          vehicleType,
+          size,
+          location,
+        };
+        await ParkingService.createSlots(slotsData);
+        toast({
+          title: "Parking slots created",
+          description: `${slotCount} parking slots with prefix ${slotPrefix} have been added.`,
+        });
+      }
       setIsCreateDialogOpen(false);
       resetForm();
-      // Refresh slots
-      const response = await ParkingService.getSlots(currentPage, itemsPerPage, searchTerm || undefined);
-      setSlots(response.items || response.data?.items || []);
-      setTotal(response.total || response.data?.total || 0);
+      await refreshSlots();
     } catch (err: any) {
+      const message = err.response?.data?.message || "Failed to create parking slot(s)";
       toast({
         title: "Error",
-        description: err.response?.data?.message || "Failed to create parking slots",
+        description: message,
         variant: "destructive",
       });
     }
@@ -165,12 +216,7 @@ const ParkingSlots: React.FC = () => {
     }
 
     try {
-      const slotData: Partial<ParkingSlot> = {
-        vehicleType,
-        size,
-        location,
-        status,
-      };
+      const slotData: Partial<ParkingSlot> = { vehicleType, size, location, status };
       await ParkingService.updateSlot(selectedSlot.id, slotData);
       toast({
         title: "Parking slot updated",
@@ -178,10 +224,7 @@ const ParkingSlots: React.FC = () => {
       });
       setIsEditDialogOpen(false);
       resetForm();
-      // Refresh slots
-      const response = await ParkingService.getSlots(currentPage, itemsPerPage, searchTerm || undefined);
-      setSlots(response.items || response.data?.items || []);
-      setTotal(response.total || response.data?.total || 0);
+      await refreshSlots();
     } catch (err: any) {
       toast({
         title: "Error",
@@ -202,10 +245,7 @@ const ParkingSlots: React.FC = () => {
       });
       setIsDeleteDialogOpen(false);
       setSelectedSlot(null);
-      // Refresh slots
-      const response = await ParkingService.getSlots(currentPage, itemsPerPage, searchTerm || undefined);
-      setSlots(response.items || response.data?.items || []);
-      setTotal(response.total || response.data?.total || 0);
+      await refreshSlots();
     } catch (err: any) {
       toast({
         title: "Error",
@@ -265,24 +305,12 @@ const ParkingSlots: React.FC = () => {
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Add Parking Slots</DialogTitle>
+                  <DialogTitle>Add Parking Slot(s)</DialogTitle>
                   <DialogDescription>
-                    Create multiple parking slots at once with sequential numbering.
+                    Create a single parking slot or multiple slots with sequential numbering.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="slotPrefix" className="text-right">
-                      Prefix
-                    </Label>
-                    <Input
-                      id="slotPrefix"
-                      value={slotPrefix}
-                      onChange={(e) => setSlotPrefix(e.target.value)}
-                      className="col-span-3"
-                      placeholder="e.g. A"
-                    />
-                  </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="slotCount" className="text-right">
                       Number of Slots
@@ -296,6 +324,20 @@ const ParkingSlots: React.FC = () => {
                       className="col-span-3"
                     />
                   </div>
+                
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="slotPrefix" className="text-right">
+                        Prefix
+                      </Label>
+                      <Input
+                        id="slotPrefix"
+                        value={slotPrefix}
+                        onChange={(e) => setSlotPrefix(e.target.value)}
+                        className="col-span-3"
+                        placeholder="e.g. A"
+                      />
+                    </div>
+                
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="vehicleType" className="text-right">
                       Vehicle Type
@@ -379,10 +421,7 @@ const ParkingSlots: React.FC = () => {
                   placeholder="Search slots..."
                   className="pl-8 w-[250px]"
                   value={searchTerm}
-                  onChange={(e) => {
-                    setSearchTerm(e.target.value);
-                    setCurrentPage(1); // Reset to first page on search
-                  }}
+                  onChange={handleSearchChange}
                 />
               </div>
             </div>
@@ -425,11 +464,7 @@ const ParkingSlots: React.FC = () => {
                       {isAdmin && (
                         <TableCell className="text-right">
                           <div className="flex justify-end space-x-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => openEditDialog(slot)}
-                            >
+                            <Button variant="ghost" size="icon" onClick={() => openEditDialog(slot)}>
                               <Edit className="h-4 w-4" />
                             </Button>
                             <Button
@@ -501,7 +536,6 @@ const ParkingSlots: React.FC = () => {
         </Card>
       </div>
 
-      {/* Edit Slot Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -606,7 +640,6 @@ const ParkingSlots: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Slot Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
