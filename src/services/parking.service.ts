@@ -15,7 +15,7 @@ export const ParkingService = {
       page,
       limit,
       ...(search ? { search } : {}),
-      ...(onlyAvailable ? { status: 'available' } : {}),
+      ...(onlyAvailable ? { status: 'AVAILABLE' } : {}),
     };
     const response = await authorizedAPI.get('/parking-slots', { params, signal });
     return response.data;
