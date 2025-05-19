@@ -3,8 +3,9 @@ import { ParkingSlot, SlotRequest, SlotRequestFormData, PaginatedResponse } from
 import { authorizedAPI } from './api';
 
 export const ParkingService = {
+
   // Parking Slot Services
-  async getSlots(page = 1, limit = 10, search?: string, onlyAvailable = false): Promise<PaginatedResponse<ParkingSlot>> {
+  async getSlots(page = 1, limit = 10, search?: string  , p0?: string | boolean, signal?: AbortSignal, onlyAvailable = false): Promise<PaginatedResponse<ParkingSlot>> {
     const params = { 
       page, 
       limit, 
@@ -41,7 +42,7 @@ export const ParkingService = {
   },
 
   // Slot Request Services
-  async getSlotRequests(page = 1, limit = 10, search?: string, status?: string): Promise<PaginatedResponse<SlotRequest>> {
+  async getSlotRequests(page = 1, limit = 10, search?: string, status?: string | boolean): Promise<PaginatedResponse<SlotRequest>> {
     const params = { 
       page, 
       limit, 

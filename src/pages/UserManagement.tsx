@@ -78,7 +78,7 @@ const UserManagement: React.FC = () => {
   
   // Check if user is admin, if not redirect to dashboard
   React.useEffect(() => {
-    if (authState.user && authState.user.role !== "admin") {
+    if (authState.user && authState.user.role !== "ADMIN") {
       toast({
         title: "Access denied",
         description: "You don't have permission to access this page.",

@@ -1,12 +1,10 @@
-import { SetStateAction } from 'react';
-
 export interface ParkingSlot {
   id: string;
   slotNumber: string;
-  vehicleType: "car" | "motorcycle" | "truck";
-  size: "small" | "medium" | "large";
-  location: string;
-  status: "available" | "occupied" | "reserved" | "maintenance";
+  vehicleType: 'CAR' | 'MOTORCYCLE' | 'TRUCK';
+  size: 'SMALL' | 'MEDIUM' | 'LARGE';
+  location: 'NORTH' | 'EAST' | 'SOUTH' | 'WEST';
+  status: 'AVAILABLE' | 'OCCUPIED' | 'RESERVED' | 'MAINTENANCE';
   createdAt: string;
   updatedAt: string;
   assignedTo?: {
@@ -19,38 +17,33 @@ export interface ParkingSlot {
 export interface SlotRequest {
   id: string;
   userId: string;
-  userName: string;  // Make sure this matches in both places
+  userName: string;
   vehicleId: string;
   vehiclePlate: string;
-  vehicleType: string;
-  preferredLocation?: string;
-  startDate: string;
-  endDate: string;
-  status: 'pending' | 'approved' | 'rejected';
+  vehicleType: 'CAR' | 'MOTORCYCLE' | 'TRUCK';
+  preferredLocation?: 'NORTH' | 'EAST' | 'SOUTH' | 'WEST';
+  startDate?: string;
+  endDate?: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
   notes?: string;
-  assignedSlot?: {
-    id: string;
-    slotNumber: string;
-  };
+  assignedSlot?: { id: string; slotNumber: string };
   rejectionReason?: string;
   createdAt: string;
   updatedAt: string;
 }
 
-
 export interface SlotRequestFormData {
   vehicleId: string;
-  preferredLocation: string;
-  startDate: string;
-  endDate: string;
+  preferredLocation?: 'NORTH' | 'EAST' | 'SOUTH' | 'WEST';
+  startDate?: string;
+  endDate?: string;
+  userId: string | any;
   notes?: string;
 }
-
 
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;
-  currentPage?: number;
-  totalPages?: number;
-  itemsPerPage?: number;
+  data?: { items: T[]; total: number };
 }
+

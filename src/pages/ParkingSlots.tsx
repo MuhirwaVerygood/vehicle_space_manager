@@ -1,5 +1,4 @@
-
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import AppLayout from "../components/layouts/AppLayout";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -37,7 +36,6 @@ import {
 import {
   Pagination,
   PaginationContent,
-  PaginationEllipsis,
   PaginationItem,
   PaginationLink,
   PaginationNext,
@@ -47,143 +45,185 @@ import { Label } from "../components/ui/label";
 import { ParkingMeter, Plus, Search, Edit, Trash2 } from "lucide-react";
 import { useToast } from "../hooks/use-toast";
 import { useAuth } from "../contexts/AuthContext";
-import { ParkingSlot } from "../types/parking";
+import { ParkingSlot, PaginatedResponse } from "../types/parking";
+import { ParkingService } from "@/services/parking.service";
 
 const ParkingSlots: React.FC = () => {
   const { toast } = useToast();
   const { authState } = useAuth();
-  const isAdmin = authState.user?.role === "admin";
-  const [searchTerm, setSearchTerm] = useState("");
+  const isAdmin = authState.user?.role === "ADMIN";
+
+  // State for slots and pagination
+  const [slots, setSlots] = useState<ParkingSlot[]>([]);
+  const [total, setTotal] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Dialog states
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<ParkingSlot | null>(null);
-  
+
   // Form state for creating/editing slots
-  const [slotNumber, setSlotNumber] = useState("");
   const [slotPrefix, setSlotPrefix] = useState("A");
   const [slotCount, setSlotCount] = useState(1);
-  const [vehicleType, setVehicleType] = useState<"car" | "motorcycle" | "truck" | "">("");
-  const [size, setSize] = useState<"small" | "medium" | "large" | "">("");
-  const [location, setLocation] = useState("");
-  const [status, setStatus] = useState<"available" | "occupied" | "reserved" | "maintenance">("available");
-  
-  // Mock data for parking slots
-  const mockSlots: ParkingSlot[] = [
-    {
-      id: "1",
-      slotNumber: "A-01",
-      vehicleType: "car",
-      size: "medium",
-      location: "North Wing, Level 1",
-      status: "available",
-      createdAt: "2023-05-10T10:30:00Z",
-      updatedAt: "2023-05-10T10:30:00Z",
-    },
-    {
-      id: "2",
-      slotNumber: "A-02",
-      vehicleType: "car",
-      size: "medium",
-      location: "North Wing, Level 1",
-      status: "occupied",
-      createdAt: "2023-05-10T10:30:00Z",
-      updatedAt: "2023-05-12T14:15:00Z",
-      assignedTo: {
-        userId: "user1",
-        vehicleId: "vehicle1",
-        vehiclePlate: "ABC123",
-      },
-    },
-    {
-      id: "3",
-      slotNumber: "B-01",
-      vehicleType: "motorcycle",
-      size: "small",
-      location: "East Wing, Level 1",
-      status: "available",
-      createdAt: "2023-05-11T09:20:00Z",
-      updatedAt: "2023-05-11T09:20:00Z",
-    },
-    {
-      id: "4",
-      slotNumber: "C-01",
-      vehicleType: "truck",
-      size: "large",
-      location: "South Wing, Ground Level",
-      status: "maintenance",
-      createdAt: "2023-05-12T11:45:00Z",
-      updatedAt: "2023-05-15T08:30:00Z",
-    },
-  ];
-  
-  const filteredSlots = mockSlots.filter(slot => 
-    slot.slotNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    slot.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    slot.status.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    slot.vehicleType.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-  
-  // Pagination
+  const [vehicleType, setVehicleType] = useState<"CAR" | "MOTORCYCLE" | "TRUCK" | "">("");
+  const [size, setSize] = useState<"SMALL" | "MEDIUM" | "LARGE" | "">("");
+  const [location, setLocation] = useState<"NORTH" | "EAST" | "SOUTH" | "WEST" | "">("");
+  const [status, setStatus] = useState<"AVAILABLE" | "OCCUPIED" | "RESERVED" | "MAINTENANCE" | "">("AVAILABLE");
+
   const itemsPerPage = 10;
-  const totalPages = Math.ceil(filteredSlots.length / itemsPerPage);
-  const paginatedSlots = filteredSlots.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-  
+
+  // Fetch slots
+  useEffect(() => {
+    const fetchSlots = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response: PaginatedResponse<ParkingSlot> = await ParkingService.getSlots(
+          currentPage,
+          itemsPerPage,
+          searchTerm || undefined
+        );
+        setSlots(response.items || response.data?.items || []);
+        setTotal(response.total || response.data?.total || 0);
+      } catch (err: any) {
+        setError(err.response?.data?.message || "Failed to fetch parking slots");
+        toast({
+          title: "Error",
+          description: err.response?.data?.message || "Failed to fetch parking slots",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchSlots();
+  }, [currentPage, searchTerm, toast]);
+
+  const totalPages = Math.ceil(total / itemsPerPage);
+
   const resetForm = () => {
-    setSlotNumber("");
     setSlotPrefix("A");
     setSlotCount(1);
     setVehicleType("");
     setSize("");
     setLocation("");
-    setStatus("available");
+    setStatus("AVAILABLE");
     setSelectedSlot(null);
   };
-  
-  const handleCreateSlot = () => {
-    // In a real app, this would make an API call
-    toast({
-      title: "Parking slots created",
-      description: `${slotCount} parking slots with prefix ${slotPrefix} have been added.`,
-    });
-    setIsCreateDialogOpen(false);
-    resetForm();
+
+  const handleCreateSlot = async () => {
+    if (!vehicleType || !size || !location) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields (Vehicle Type, Size, Location).",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const slotsData = {
+        count: slotCount,
+        prefix: slotPrefix,
+        vehicleType,
+        size,
+        location,
+      };
+      await ParkingService.createSlots(slotsData);
+      toast({
+        title: "Parking slots created",
+        description: `${slotCount} parking slots with prefix ${slotPrefix} have been added.`,
+      });
+      setIsCreateDialogOpen(false);
+      resetForm();
+      // Refresh slots
+      const response = await ParkingService.getSlots(currentPage, itemsPerPage, searchTerm || undefined);
+      setSlots(response.items || response.data?.items || []);
+      setTotal(response.total || response.data?.total || 0);
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.response?.data?.message || "Failed to create parking slots",
+        variant: "destructive",
+      });
+    }
   };
-  
-  const handleEditSlot = () => {
-    // In a real app, this would make an API call
-    toast({
-      title: "Parking slot updated",
-      description: `Slot ${selectedSlot?.slotNumber} has been updated successfully.`,
-    });
-    setIsEditDialogOpen(false);
-    resetForm();
+
+  const handleEditSlot = async () => {
+    if (!selectedSlot || !vehicleType || !size || !location || !status) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields (Vehicle Type, Size, Location, Status).",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const slotData: Partial<ParkingSlot> = {
+        vehicleType,
+        size,
+        location,
+        status,
+      };
+      await ParkingService.updateSlot(selectedSlot.id, slotData);
+      toast({
+        title: "Parking slot updated",
+        description: `Slot ${selectedSlot.slotNumber} has been updated successfully.`,
+      });
+      setIsEditDialogOpen(false);
+      resetForm();
+      // Refresh slots
+      const response = await ParkingService.getSlots(currentPage, itemsPerPage, searchTerm || undefined);
+      setSlots(response.items || response.data?.items || []);
+      setTotal(response.total || response.data?.total || 0);
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.response?.data?.message || "Failed to update parking slot",
+        variant: "destructive",
+      });
+    }
   };
-  
-  const handleDeleteSlot = () => {
-    // In a real app, this would make an API call
-    toast({
-      title: "Parking slot deleted",
-      description: `Slot ${selectedSlot?.slotNumber} has been removed.`,
-    });
-    setIsDeleteDialogOpen(false);
-    setSelectedSlot(null);
+
+  const handleDeleteSlot = async () => {
+    if (!selectedSlot) return;
+
+    try {
+      await ParkingService.deleteSlot(selectedSlot.id);
+      toast({
+        title: "Parking slot deleted",
+        description: `Slot ${selectedSlot.slotNumber} has been removed.`,
+      });
+      setIsDeleteDialogOpen(false);
+      setSelectedSlot(null);
+      // Refresh slots
+      const response = await ParkingService.getSlots(currentPage, itemsPerPage, searchTerm || undefined);
+      setSlots(response.items || response.data?.items || []);
+      setTotal(response.total || response.data?.total || 0);
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.response?.data?.message || "Failed to delete parking slot",
+        variant: "destructive",
+      });
+    }
   };
-  
+
   const openEditDialog = (slot: ParkingSlot) => {
     setSelectedSlot(slot);
-    setSlotNumber(slot.slotNumber);
     setVehicleType(slot.vehicleType);
     setSize(slot.size);
     setLocation(slot.location);
     setStatus(slot.status);
     setIsEditDialogOpen(true);
   };
-  
+
   const openDeleteDialog = (slot: ParkingSlot) => {
     setSelectedSlot(slot);
     setIsDeleteDialogOpen(true);
@@ -191,13 +231,13 @@ const ParkingSlots: React.FC = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "available":
+      case "AVAILABLE":
         return "text-green-600 bg-green-100";
-      case "occupied":
+      case "OCCUPIED":
         return "text-blue-600 bg-blue-100";
-      case "reserved":
+      case "RESERVED":
         return "text-yellow-600 bg-yellow-100";
-      case "maintenance":
+      case "MAINTENANCE":
         return "text-red-600 bg-red-100";
       default:
         return "text-gray-600 bg-gray-100";
@@ -214,7 +254,7 @@ const ParkingSlots: React.FC = () => {
               {isAdmin ? "Manage all parking slots in the system" : "View available parking slots"}
             </p>
           </div>
-          
+
           {isAdmin && (
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
               <DialogTrigger asChild>
@@ -252,7 +292,7 @@ const ParkingSlots: React.FC = () => {
                       type="number"
                       min="1"
                       value={slotCount}
-                      onChange={(e) => setSlotCount(parseInt(e.target.value))}
+                      onChange={(e) => setSlotCount(parseInt(e.target.value) || 1)}
                       className="col-span-3"
                     />
                   </div>
@@ -260,17 +300,17 @@ const ParkingSlots: React.FC = () => {
                     <Label htmlFor="vehicleType" className="text-right">
                       Vehicle Type
                     </Label>
-                    <Select 
-                      value={vehicleType} 
-                      onValueChange={(value: "car" | "motorcycle" | "truck") => setVehicleType(value)}
+                    <Select
+                      value={vehicleType}
+                      onValueChange={(value: "CAR" | "MOTORCYCLE" | "TRUCK") => setVehicleType(value)}
                     >
                       <SelectTrigger className="col-span-3">
                         <SelectValue placeholder="Select vehicle type" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="car">Car</SelectItem>
-                        <SelectItem value="motorcycle">Motorcycle</SelectItem>
-                        <SelectItem value="truck">Truck</SelectItem>
+                        <SelectItem value="CAR">Car</SelectItem>
+                        <SelectItem value="MOTORCYCLE">Motorcycle</SelectItem>
+                        <SelectItem value="TRUCK">Truck</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -278,17 +318,17 @@ const ParkingSlots: React.FC = () => {
                     <Label htmlFor="size" className="text-right">
                       Size
                     </Label>
-                    <Select 
-                      value={size} 
-                      onValueChange={(value: "small" | "medium" | "large") => setSize(value)}
+                    <Select
+                      value={size}
+                      onValueChange={(value: "SMALL" | "MEDIUM" | "LARGE") => setSize(value)}
                     >
                       <SelectTrigger className="col-span-3">
                         <SelectValue placeholder="Select size" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="small">Small</SelectItem>
-                        <SelectItem value="medium">Medium</SelectItem>
-                        <SelectItem value="large">Large</SelectItem>
+                        <SelectItem value="SMALL">Small</SelectItem>
+                        <SelectItem value="MEDIUM">Medium</SelectItem>
+                        <SelectItem value="LARGE">Large</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -296,13 +336,20 @@ const ParkingSlots: React.FC = () => {
                     <Label htmlFor="location" className="text-right">
                       Location
                     </Label>
-                    <Input
-                      id="location"
+                    <Select
                       value={location}
-                      onChange={(e) => setLocation(e.target.value)}
-                      className="col-span-3"
-                      placeholder="e.g. North Wing, Level 1"
-                    />
+                      onValueChange={(value: "NORTH" | "EAST" | "SOUTH" | "WEST") => setLocation(value)}
+                    >
+                      <SelectTrigger className="col-span-3">
+                        <SelectValue placeholder="Select location" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="NORTH">North</SelectItem>
+                        <SelectItem value="EAST">East</SelectItem>
+                        <SelectItem value="SOUTH">South</SelectItem>
+                        <SelectItem value="WEST">West</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
                 <DialogFooter>
@@ -315,7 +362,7 @@ const ParkingSlots: React.FC = () => {
             </Dialog>
           )}
         </div>
-        
+
         <Card>
           <CardHeader className="pb-3">
             <div className="flex justify-between items-center">
@@ -332,13 +379,26 @@ const ParkingSlots: React.FC = () => {
                   placeholder="Search slots..."
                   className="pl-8 w-[250px]"
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setCurrentPage(1); // Reset to first page on search
+                  }}
                 />
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            {filteredSlots.length > 0 ? (
+            {isLoading ? (
+              <div className="flex justify-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+              </div>
+            ) : error ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <ParkingMeter size={48} className="text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium">Error</h3>
+                <p className="text-sm text-muted-foreground">{error}</p>
+              </div>
+            ) : slots.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -351,17 +411,15 @@ const ParkingSlots: React.FC = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedSlots.map((slot) => (
+                  {slots.map((slot) => (
                     <TableRow key={slot.id}>
-                      <TableCell className="font-medium">
-                        {slot.slotNumber}
-                      </TableCell>
-                      <TableCell className="capitalize">{slot.vehicleType}</TableCell>
-                      <TableCell className="capitalize">{slot.size}</TableCell>
-                      <TableCell>{slot.location}</TableCell>
+                      <TableCell className="font-medium">{slot.slotNumber}</TableCell>
+                      <TableCell className="capitalize">{slot.vehicleType.toLowerCase()}</TableCell>
+                      <TableCell className="capitalize">{slot.size.toLowerCase()}</TableCell>
+                      <TableCell className="capitalize">{slot.location.toLowerCase()}</TableCell>
                       <TableCell>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(slot.status)}`}>
-                          {slot.status.charAt(0).toUpperCase() + slot.status.slice(1)}
+                          {slot.status.charAt(0).toUpperCase() + slot.status.slice(1).toLowerCase()}
                         </span>
                       </TableCell>
                       {isAdmin && (
@@ -406,32 +464,32 @@ const ParkingSlots: React.FC = () => {
                 )}
               </div>
             )}
-            
-            {filteredSlots.length > 0 && totalPages > 1 && (
+
+            {slots.length > 0 && totalPages > 1 && (
               <div className="mt-4 flex justify-center">
                 <Pagination>
                   <PaginationContent>
                     <PaginationItem>
-                      <PaginationPrevious 
-                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      <PaginationPrevious
+                        onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                         className={currentPage <= 1 ? "pointer-events-none opacity-50" : ""}
                       />
                     </PaginationItem>
-                    
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                       <PaginationItem key={page}>
-                        <PaginationLink 
-                          isActive={currentPage === page} 
+                        <PaginationLink
+                          isActive={currentPage === page}
                           onClick={() => setCurrentPage(page)}
                         >
                           {page}
                         </PaginationLink>
                       </PaginationItem>
                     ))}
-                    
+
                     <PaginationItem>
-                      <PaginationNext 
-                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                      <PaginationNext
+                        onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
                         className={currentPage >= totalPages ? "pointer-events-none opacity-50" : ""}
                       />
                     </PaginationItem>
@@ -442,15 +500,13 @@ const ParkingSlots: React.FC = () => {
           </CardContent>
         </Card>
       </div>
-      
+
       {/* Edit Slot Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Parking Slot</DialogTitle>
-            <DialogDescription>
-              Update the details of the parking slot.
-            </DialogDescription>
+            <DialogDescription>Update the details of the parking slot.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
@@ -459,8 +515,7 @@ const ParkingSlots: React.FC = () => {
               </Label>
               <Input
                 id="edit-slotNumber"
-                value={slotNumber}
-                onChange={(e) => setSlotNumber(e.target.value)}
+                value={selectedSlot?.slotNumber || ""}
                 className="col-span-3"
                 disabled
               />
@@ -469,17 +524,17 @@ const ParkingSlots: React.FC = () => {
               <Label htmlFor="edit-vehicleType" className="text-right">
                 Vehicle Type
               </Label>
-              <Select 
-                value={vehicleType} 
-                onValueChange={(value: "car" | "motorcycle" | "truck") => setVehicleType(value)}
+              <Select
+                value={vehicleType}
+                onValueChange={(value: "CAR" | "MOTORCYCLE" | "TRUCK") => setVehicleType(value)}
               >
                 <SelectTrigger className="col-span-3">
                   <SelectValue placeholder="Select vehicle type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="car">Car</SelectItem>
-                  <SelectItem value="motorcycle">Motorcycle</SelectItem>
-                  <SelectItem value="truck">Truck</SelectItem>
+                  <SelectItem value="CAR">Car</SelectItem>
+                  <SelectItem value="MOTORCYCLE">Motorcycle</SelectItem>
+                  <SelectItem value="TRUCK">Truck</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -487,17 +542,17 @@ const ParkingSlots: React.FC = () => {
               <Label htmlFor="edit-size" className="text-right">
                 Size
               </Label>
-              <Select 
-                value={size} 
-                onValueChange={(value: "small" | "medium" | "large") => setSize(value)}
+              <Select
+                value={size}
+                onValueChange={(value: "SMALL" | "MEDIUM" | "LARGE") => setSize(value)}
               >
                 <SelectTrigger className="col-span-3">
                   <SelectValue placeholder="Select size" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="small">Small</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="large">Large</SelectItem>
+                  <SelectItem value="SMALL">Small</SelectItem>
+                  <SelectItem value="MEDIUM">Medium</SelectItem>
+                  <SelectItem value="LARGE">Large</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -505,29 +560,39 @@ const ParkingSlots: React.FC = () => {
               <Label htmlFor="edit-location" className="text-right">
                 Location
               </Label>
-              <Input
-                id="edit-location"
+              <Select
                 value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                className="col-span-3"
-              />
+                onValueChange={(value: "NORTH" | "EAST" | "SOUTH" | "WEST") => setLocation(value)}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select location" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="NORTH">North</SelectItem>
+                  <SelectItem value="EAST">East</SelectItem>
+                  <SelectItem value="SOUTH">South</SelectItem>
+                  <SelectItem value="WEST">West</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="edit-status" className="text-right">
                 Status
               </Label>
-              <Select 
-                value={status} 
-                onValueChange={(value: "available" | "occupied" | "reserved" | "maintenance") => setStatus(value)}
+              <Select
+                value={status}
+                onValueChange={(value: "AVAILABLE" | "OCCUPIED" | "RESERVED" | "MAINTENANCE") =>
+                  setStatus(value)
+                }
               >
                 <SelectTrigger className="col-span-3">
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="available">Available</SelectItem>
-                  <SelectItem value="occupied">Occupied</SelectItem>
-                  <SelectItem value="reserved">Reserved</SelectItem>
-                  <SelectItem value="maintenance">Maintenance</SelectItem>
+                  <SelectItem value="AVAILABLE">Available</SelectItem>
+                  <SelectItem value="OCCUPIED">Occupied</SelectItem>
+                  <SelectItem value="RESERVED">Reserved</SelectItem>
+                  <SelectItem value="MAINTENANCE">Maintenance</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -540,25 +605,21 @@ const ParkingSlots: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      
+
       {/* Delete Slot Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirm Deletion</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete the parking slot{" "}
-              <strong>{selectedSlot?.slotNumber}</strong>? This action cannot be undone.
+              Are you sure you want to delete the parking slot <strong>{selectedSlot?.slotNumber}</strong>? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
               Cancel
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDeleteSlot}
-            >
+            <Button variant="destructive" onClick={handleDeleteSlot}>
               Delete
             </Button>
           </DialogFooter>

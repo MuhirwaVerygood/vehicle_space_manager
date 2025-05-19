@@ -43,7 +43,7 @@ import {
 } from "../components/ui/pagination";
 import { Textarea } from "../components/ui/textarea";
 import { Label } from "../components/ui/label";
-import { MessageSquare, Plus, Search, Check, X, RefreshCw } from "lucide-react";
+import { MessageSquare, Plus, Search, Check, X, RefreshCw, Underline } from "lucide-react";
 import { useToast } from "../hooks/use-toast";
 import { useAuth } from "../contexts/AuthContext";
 import { Vehicle } from "../types/vehicle";
@@ -60,7 +60,7 @@ export interface SlotRequest {
   vehicleId: string;
   vehiclePlate: string;
   vehicleType: string;
-  preferredLocation?: string;
+  preferredLocation?: "NORTH" | "EAST" | "SOUTH" | "WEST" |  undefined ;
   startDate: string;
   endDate: string;
   status: 'pending' | 'approved' | 'rejected';
@@ -92,7 +92,6 @@ const SlotRequests: React.FC = () => {
   const [isApproveDialogOpen, setIsApproveDialogOpen] = useState(false);
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<SlotRequest | null>(null);
-
   // Data states
   const [slotRequests, setSlotRequests] = useState<SlotRequest[]>([]);
   const [userVehicles, setUserVehicles] = useState<Vehicle[]>([]);
@@ -104,12 +103,13 @@ const SlotRequests: React.FC = () => {
 
   // Form state for creating requests
   const [selectedVehicleId, setSelectedVehicleId] = useState("");
-  const [preferredLocation, setPreferredLocation] = useState("");
+  const [preferredLocation, setPreferredLocation] = useState<"NORTH" | "EAST" | "SOUTH" | "WEST" |  undefined >(undefined);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [notes, setNotes] = useState("");
   const [rejectionReason, setRejectionReason] = useState("");
   const [assignedSlotId, setAssignedSlotId] = useState("");
+  
 
   // Pagination
   const itemsPerPage = 10;
@@ -123,7 +123,7 @@ const SlotRequests: React.FC = () => {
       try {
         const data = await VehicleService.getVehicles(1, 100, undefined);
         console.log("VehicleService.getVehicles response:", data);
-        if (data) {
+        if (data) {                    
           setUserVehicles(data.items); // Use data.items to get Vehicle[]
           console.log("Set userVehicles:", data.items);
           if (data.items.length === 0) {
@@ -169,7 +169,7 @@ const SlotRequests: React.FC = () => {
         debouncedSearchTerm || undefined,
         undefined
       );
-      setSlotRequests(response.items);
+      setSlotRequests(( response as any ).items);
       setTotalItems(response.total);
     } catch (err: any) {
       const errorMessage = err.response?.data?.message || "Failed to fetch slot requests";
@@ -208,9 +208,12 @@ const SlotRequests: React.FC = () => {
     fetchAvailableSlots();
   }, [fetchAvailableSlots]);
 
+  const user = JSON.parse(localStorage.getItem("user"))
+
+
   const resetForm = () => {
     setSelectedVehicleId("");
-    setPreferredLocation("");
+    setPreferredLocation(undefined);
     setStartDate("");
     setEndDate("");
     setNotes("");
@@ -229,9 +232,12 @@ const SlotRequests: React.FC = () => {
       return;
     }
     try {
+
+
       const requestData: SlotRequestFormData = {
         vehicleId: selectedVehicleId,
         preferredLocation,
+        userId: user?.id,
         startDate,
         endDate,
         notes,
@@ -274,10 +280,12 @@ const SlotRequests: React.FC = () => {
 };
 
 
+
+
 const handleUpdateRequest = (request: SlotRequest) => {
   setSelectedRequest(request);
   setSelectedVehicleId(request.vehicleId);
-  setPreferredLocation(request.preferredLocation || "");
+  setPreferredLocation(request.preferredLocation );
   setStartDate(request.startDate);
   setEndDate(request.endDate);
   setNotes(request.notes || "");
@@ -292,6 +300,7 @@ const handleUpdateSubmit = async () => {
     const requestData: SlotRequestFormData = {
       vehicleId: selectedVehicleId,
       preferredLocation,
+      userId: 
       startDate,
       endDate,
       notes,
@@ -452,13 +461,25 @@ const handleUpdateSubmit = async () => {
                       <Label htmlFor="preferredLocation" className="text-right">
                         Preferred Location
                       </Label>
-                      <Input
-                        id="preferredLocation"
-                        value={preferredLocation}
-                        onChange={(e) => setPreferredLocation(e.target.value)}
-                        className="col-span-3"
-                        placeholder="e.g. North Wing, Near Elevator"
-                      />
+                    <Select
+    value={preferredLocation || "NONE"} // Use "NONE" when preferredLocation is undefined
+    onValueChange={(value: "NORTH" | "EAST" | "SOUTH" | "WEST" | "NONE") =>
+      setPreferredLocation(value === "NONE" ? undefined : value)
+    }
+  >
+    <SelectTrigger className="col-span-3">
+      <SelectValue placeholder="Select preferred location" />
+    </SelectTrigger>
+    <SelectContent>
+      <SelectItem value="NONE">None</SelectItem>
+      <SelectItem value="NORTH">North</SelectItem>
+      <SelectItem value="EAST">East</SelectItem>
+      <SelectItem value="SOUTH">South</SelectItem>
+      <SelectItem value="WEST">West</SelectItem>
+    </SelectContent>
+  </Select>
+  
+
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="startDate" className="text-right">
@@ -731,7 +752,7 @@ const handleUpdateSubmit = async () => {
         {selectedRequest ? "Update Parking Slot Request" : "Request Parking Slot"}
       </DialogTitle>
       <DialogDescription>
-        {selectedRequest 
+        {selectedRequest
           ? "Update your parking slot request details below"
           : "Submit a request for a parking slot for your vehicle"}
       </DialogDescription>
@@ -769,21 +790,30 @@ const handleUpdateSubmit = async () => {
           </SelectContent>
         </Select>
       </div>
-      
       {/* Preferred Location */}
       <div className="grid grid-cols-4 items-center gap-4">
         <Label htmlFor="preferredLocation" className="text-right">
           Preferred Location
         </Label>
-        <Input
-          id="preferredLocation"
-          value={preferredLocation}
-          onChange={(e) => setPreferredLocation(e.target.value)}
-          className="col-span-3"
-          placeholder="e.g. North Wing, Near Elevator"
-        />
+        <Select
+          value={preferredLocation ?? "NONE"} // Use "NONE" when undefined
+          onValueChange={(value: "NORTH" | "EAST" | "SOUTH" | "WEST" | "NONE") => {
+            console.log("Selected preferredLocation:", value); // Debug log
+            setPreferredLocation(value === "NONE" ? undefined : value);
+          }}
+        >
+          <SelectTrigger className="col-span-3">
+            <SelectValue placeholder="Select preferred location" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="NONE">None</SelectItem>
+            <SelectItem value="NORTH">North</SelectItem>
+            <SelectItem value="EAST">East</SelectItem>
+            <SelectItem value="SOUTH">South</SelectItem>
+            <SelectItem value="WEST">West</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
-      
       {/* Start Date */}
       <div className="grid grid-cols-4 items-center gap-4">
         <Label htmlFor="startDate" className="text-right">
@@ -797,7 +827,6 @@ const handleUpdateSubmit = async () => {
           className="col-span-3"
         />
       </div>
-      
       {/* End Date */}
       <div className="grid grid-cols-4 items-center gap-4">
         <Label htmlFor="endDate" className="text-right">
@@ -811,7 +840,6 @@ const handleUpdateSubmit = async () => {
           className="col-span-3"
         />
       </div>
-      
       {/* Notes */}
       <div className="grid grid-cols-4 items-center gap-4">
         <Label htmlFor="notes" className="text-right">
@@ -827,14 +855,17 @@ const handleUpdateSubmit = async () => {
       </div>
     </div>
     <DialogFooter>
-      <Button variant="outline" onClick={() => {
-        setIsCreateDialogOpen(false);
-        resetForm();
-      }}>
+      <Button
+        variant="outline"
+        onClick={() => {
+          setIsCreateDialogOpen(false);
+          resetForm();
+        }}
+      >
         Cancel
       </Button>
       <Button
-        onClick={() => selectedRequest ? handleUpdateSubmit() : handleCreateRequest()}
+        onClick={() => (selectedRequest ? handleUpdateSubmit() : handleCreateRequest())}
         disabled={isVehiclesLoading || !selectedVehicleId || !startDate || !endDate}
       >
         {selectedRequest ? "Update Request" : "Submit Request"}
@@ -842,7 +873,6 @@ const handleUpdateSubmit = async () => {
     </DialogFooter>
   </DialogContent>
 </Dialog>
-
 
       {/* Approve Request Dialog */}
       <Dialog open={isApproveDialogOpen} onOpenChange={setIsApproveDialogOpen}>
