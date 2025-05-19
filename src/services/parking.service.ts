@@ -70,7 +70,7 @@ export const ParkingService = {
       ...(status ? { status } : {}),
     };
     const response = await authorizedAPI.get('/slot-requests', { params });
-    return response.data.data.data;
+    return response.data.data;
   },
 
   async createSlotRequest(requestData: SlotRequestFormData): Promise<SlotRequest> {
