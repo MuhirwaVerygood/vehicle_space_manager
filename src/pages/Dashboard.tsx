@@ -130,8 +130,7 @@ const Dashboard: React.FC = () => {
         // Fetch users (admin only)
         if (isAdmin) {
           const usersResponse = await AuthService.getAllUsers(1, 100);
-          console.log(usersResponse.items);
-          
+          console.log(usersResponse);     
           setUsersCount(usersResponse.items.length);
         }
 

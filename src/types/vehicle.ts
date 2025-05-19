@@ -21,7 +21,7 @@ export interface Vehicle {
     model?: string;
     [key: string]: any;
   };
-  status?: 'pending' | 'approved' | 'rejected';
+  status?: 'PENDING' | 'APPROVED' | 'REJECTED';
   createdAt: string;
   updatedAt: string;
 }

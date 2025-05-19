@@ -89,6 +89,9 @@ export const ParkingService = {
 
   async approveSlotRequest(id: string, slotId?: string): Promise<SlotRequest> {
     const response = await authorizedAPI.put(`/slot-requests/${id}/approve`, { slotId });
+    console.log(response.data.data);
+    
+    return ;
     return response.data.data;
   },
 
