@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from "react";
 import AppLayout from "../components/layouts/AppLayout";
 import { Button } from "../components/ui/button";
@@ -120,6 +121,7 @@ const SlotRequests: React.FC = () => {
   const [totalItems, setTotalItems] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [isVehiclesLoading, setIsVehiclesLoading] = useState(false);
+  const [isSlotsLoading, setIsSlotsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Form state for creating requests
@@ -190,7 +192,7 @@ const SlotRequests: React.FC = () => {
         debouncedSearchTerm || undefined,
         undefined
       );
-      setSlotRequests(( response as any).items ?? []);
+      setSlotRequests((response as any ).items ?? []);
       setTotalItems(response.total ?? 0);
     } catch (err: any) {
       const errorMessage =
@@ -210,10 +212,16 @@ const SlotRequests: React.FC = () => {
   // Fetch available slots for approve dialog
   const fetchAvailableSlots = useCallback(async () => {
     if (!isAdmin || !isApproveDialogOpen) return;
+    setIsSlotsLoading(true);
     try {
+      // Use getParkingSlots instead of getSlots
       const response = await ParkingService.getSlots(1, 100, undefined, true);
-      setAvailableSlots(response.items ?? []);
-      if (!response.items || response.items.length === 0) {
+      console.log("ParkingService.getParkingSlots response:", response.data.items);
+      const slots = response.data.items ?? [];
+      console.log(slots);
+      
+      setAvailableSlots(slots);
+      if (slots.length === 0) {
         toast({
           title: "No slots available",
           description: "No parking slots are available for assignment.",
@@ -221,16 +229,19 @@ const SlotRequests: React.FC = () => {
         });
       }
     } catch (err: any) {
-      const errorMessage =
-        err.response?.data?.message || "Failed to fetch available slots";
+      console.error("fetchAvailableSlots error:", err);
+      const errorMessage = err.response?.data?.message || "Failed to fetch available slots";
       setAvailableSlots([]);
       toast({
         title: "Error",
         description: errorMessage,
         variant: "destructive",
       });
+    } finally {
+      setIsSlotsLoading(false);
     }
   }, [isAdmin, isApproveDialogOpen]);
+  
 
   useEffect(() => {
     fetchSlotRequests();
@@ -241,6 +252,7 @@ const SlotRequests: React.FC = () => {
       fetchAvailableSlots();
     } else {
       setAvailableSlots([]); // Clear slots when dialog closes
+      setIsSlotsLoading(false);
     }
   }, [isApproveDialogOpen, fetchAvailableSlots]);
 
@@ -973,74 +985,79 @@ const SlotRequests: React.FC = () => {
         </Dialog>
 
         {/* Approve Request Dialog */}
-       {/* Approve Request Dialog */}
-<Dialog
-  open={isApproveDialogOpen}
-  onOpenChange={setIsApproveDialogOpen}
->
-  <DialogContent>
-    <DialogHeader>
-      <DialogTitle>Approve Parking Request</DialogTitle>
-      <DialogDescription>
-        {selectedRequest
-          ? `Assign a parking slot to the request from ${selectedRequest.userName} for vehicle ${selectedRequest.vehiclePlate}.`
-          : "No request selected."}
-      </DialogDescription>
-    </DialogHeader>
-    {selectedRequest ? (
-      <div className="grid gap-4 py-4">
-        <div className="grid grid-cols-4 items-center gap-4">
-          <Label htmlFor="assignedSlotId" className="text-right">
-            Assign Slot
-          </Label>
-          <Select
-            value={assignedSlotId}
-            onValueChange={setAssignedSlotId}
-            disabled={availableSlots.length === 0}
-          >
-            <SelectTrigger className="col-span-3">
-              <SelectValue placeholder="Select a parking slot" />
-            </SelectTrigger>
-            <SelectContent>
-              {availableSlots.length > 0 ? (
-                availableSlots.map((slot) => (
-                  <SelectItem key={slot.id} value={slot.id}>
-                    {slot.slotNumber} ({slot.vehicleType})
-                  </SelectItem>
-                ))
-              ) : (
-                <SelectItem value="none" disabled>
-                  No available slots
-                </SelectItem>
-              )}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-    ) : (
-      <p className="text-red-600">
-        Error: No request selected for approval.
-      </p>
-    )}
-    <DialogFooter>
-      <Button
-        variant="outline"
-        onClick={() => {
-          setIsApproveDialogOpen(false);
-          resetForm();
-        }}
-      >
-        Cancel
-      </Button>
-      <Button
-        onClick={handleApproveRequest}
-        disabled={!assignedSlotId || !selectedRequest}
-      >
-        Approve Request
-      </Button>
-    </DialogFooter>
-  </DialogContent>
-</Dialog>
+        <Dialog
+          open={isApproveDialogOpen}
+          onOpenChange={setIsApproveDialogOpen}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Approve Parking Request</DialogTitle>
+              <DialogDescription>
+                {selectedRequest
+                  ? `Assign a parking slot to the request from ${selectedRequest.userName} for vehicle ${selectedRequest.vehiclePlate}.`
+                  : "No request selected."}
+              </DialogDescription>
+            </DialogHeader>
+            {selectedRequest ? (
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="assignedSlotId" className="text-right">
+                    Assign Slot
+                  </Label>
+                  {isSlotsLoading ? (
+                    <div className="col-span-3 flex items-center">
+                      <p className="text-muted-foreground">Loading slots...</p>
+                    </div>
+                  ) : (
+                    <Select
+                    value={assignedSlotId}
+                    onValueChange={setAssignedSlotId}
+                    disabled={isSlotsLoading}
+                  >
+                    <SelectTrigger className="col-span-3">
+                      <SelectValue placeholder="Select a parking slot" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableSlots.length > 0 ? (
+                        availableSlots.map((slot) => (
+                          <SelectItem key={slot.id} value={slot.id}>
+                            Slot {slot.slotNumber} - {slot.location} ({slot.vehicleType})
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="none" disabled>
+                          No available slots
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <p className="text-red-600">
+                Error: No request selected for approval.
+              </p>
+            )}
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsApproveDialogOpen(false);
+                  resetForm();
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleApproveRequest}
+                disabled={isSlotsLoading || !assignedSlotId || !selectedRequest}
+              >
+                Approve Request
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Reject Request Dialog */}
         <Dialog
