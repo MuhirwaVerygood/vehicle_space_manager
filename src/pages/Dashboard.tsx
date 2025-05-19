@@ -35,7 +35,7 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, description, icon, li
 
 const Dashboard: React.FC = () => {
   const { authState } = useAuth();
-  const isAdmin = authState.user?.role === "admin";
+  const isAdmin = authState.user?.role === "ADMIN";
   
   // Mock data - in a real app, you'd fetch this from your API
   const statsForUser = [

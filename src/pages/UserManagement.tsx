@@ -1,8 +1,8 @@
-
-import React, { useState } from "react";
-import AppLayout from "../components/layouts/AppLayout";
-import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
+import React, { useState, useEffect, useMemo } from 'react';
+import { debounce } from 'lodash'; // Import debounce from Lodash
+import AppLayout from '../components/layouts/AppLayout';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
 import {
   Table,
   TableBody,
@@ -10,14 +10,14 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "../components/ui/table";
+} from '../components/ui/table';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "../components/ui/card";
+} from '../components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -26,14 +26,15 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "../components/ui/dialog";
+} from '../components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../components/ui/select";
+} from '../components/ui/select';
 import {
   Pagination,
   PaginationContent,
@@ -41,193 +42,228 @@ import {
   PaginationLink,
   PaginationNext,
   PaginationPrevious,
-} from "../components/ui/pagination";
+} from '../components/ui/pagination';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "../components/ui/dropdown-menu";
-import { Switch } from "../components/ui/switch";
-import { Label } from "../components/ui/label";
-import { User, Search, Edit, MoreHorizontal, Plus } from "lucide-react";
-import { useToast } from "../hooks/use-toast";
-import { useAuth } from "../contexts/AuthContext";
-import { useNavigate } from "react-router-dom";
-
-// Extended User interface for user management
-interface ExtendedUser {
-  id: string;
-  name: string;
-  email: string;
-  role: "user" | "admin";
-  status: "active" | "suspended" | "pending";
-  vehicleCount: number;
-  createdAt: string;
-  lastLogin?: string;
-}
-
+} from '../components/ui/dropdown-menu';
+import { User, Search, Edit, MoreHorizontal, Plus } from 'lucide-react';
+import { useToast } from '../hooks/use-toast';
+import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { AuthService, ExtendedUser  } from '@/services/auth.service';
 const UserManagement: React.FC = () => {
   const { toast } = useToast();
   const { authState } = useAuth();
   const navigate = useNavigate();
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(''); // Separate state for debounced value
   const [currentPage, setCurrentPage] = useState(1);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  
-  // Check if user is admin, if not redirect to dashboard
-  React.useEffect(() => {
-    if (authState.user && authState.user.role !== "ADMIN") {
+  const [users, setUsers] = useState<ExtendedUser[]>([]);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Form state for creating/editing users
+  const [userName, setUserName] = useState('');
+  const [userEmail, setUserEmail] = useState('');
+  const [userRole, setUserRole] = useState<'USER' | 'ADMIN'>('USER');
+  const [userStatus, setUserStatus] = useState<'active' | 'suspended' | 'pending'>('active');
+  const [selectedUser, setSelectedUser] = useState<ExtendedUser | null>(null);
+
+  // Debounced search handler
+  const handleSearch = useMemo(
+    () =>
+      debounce((value: string) => {
+        setDebouncedSearchTerm(value);
+        setCurrentPage(1); // Reset to first page on new search
+      }, 500),
+    []
+  );
+
+  // Handle search input change
+  const onSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchTerm(value);
+    handleSearch(value);
+  };
+
+  // Clean up debounce on unmount
+  useEffect(() => {
+    return () => {
+      handleSearch.cancel(); // Cancel pending debounced calls
+    };
+  }, [handleSearch]);
+
+  // Check if user is admin
+  useEffect(() => {
+    if (authState.user && authState.user.role !== 'ADMIN') {
       toast({
-        title: "Access denied",
+        title: 'Access denied',
         description: "You don't have permission to access this page.",
-        variant: "destructive",
+        variant: 'destructive',
       });
-      navigate("/dashboard");
+      navigate('/dashboard');
     }
   }, [authState.user, navigate, toast]);
-  
-  // Form state for creating/editing users
-  const [userName, setUserName] = useState("");
-  const [userEmail, setUserEmail] = useState("");
-  const [userRole, setUserRole] = useState<"user" | "admin">("user");
-  const [userStatus, setUserStatus] = useState<"active" | "suspended" | "pending">("active");
-  const [selectedUser, setSelectedUser] = useState<ExtendedUser | null>(null);
-  
-  // Mock data for users
-  const mockUsers: ExtendedUser[] = [
-    {
-      id: "1",
-      name: "John Doe",
-      email: "john@example.com",
-      role: "user",
-      status: "active",
-      vehicleCount: 2,
-      createdAt: "2025-01-15T10:30:00Z",
-      lastLogin: "2025-05-14T08:45:00Z",
-    },
-    {
-      id: "2",
-      name: "Jane Smith",
-      email: "jane@example.com",
-      role: "user",
-      status: "active",
-      vehicleCount: 1,
-      createdAt: "2025-02-20T14:15:00Z",
-      lastLogin: "2025-05-13T16:30:00Z",
-    },
-    {
-      id: "3",
-      name: "Robert Johnson",
-      email: "robert@example.com",
-      role: "admin",
-      status: "active",
-      vehicleCount: 0,
-      createdAt: "2025-01-05T09:00:00Z",
-      lastLogin: "2025-05-15T10:00:00Z",
-    },
-    {
-      id: "4",
-      name: "Sarah Williams",
-      email: "sarah@example.com",
-      role: "user",
-      status: "suspended",
-      vehicleCount: 3,
-      createdAt: "2025-03-10T11:20:00Z",
-      lastLogin: "2025-04-20T13:15:00Z",
-    },
-    {
-      id: "5",
-      name: "Michael Brown",
-      email: "michael@example.com",
-      role: "user",
-      status: "pending",
-      vehicleCount: 0,
-      createdAt: "2025-05-05T16:45:00Z",
-    },
-  ];
-  
-  const filteredUsers = mockUsers.filter(user => 
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.role.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.status.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-  
-  // Pagination
-  const itemsPerPage = 10;
-  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
-  const paginatedUsers = filteredUsers.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-  
+
+   const fetchUsers = async () => {
+      setIsLoading(true);
+      try {
+        const response = await AuthService.getAllUsers(currentPage, 10, debouncedSearchTerm);
+        setUsers(
+          response.items.map((user) => ({
+            ...user,
+            status: user.status || 'active',
+            vehicleCount: user.vehicleCount || 0,
+            createdAt: user.createdAt || new Date().toISOString(),
+          }))
+        );
+        setTotalPages(response.totalPages);
+        setTotalItems(response.total);
+      } catch (error: any) {
+        toast({
+          title: 'Error',
+          description: error.response?.data?.message || 'Failed to fetch users',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+  // Fetch users
+  useEffect(() => {
+   
+    fetchUsers();
+
+  }, [currentPage, debouncedSearchTerm,]);
+
   const resetForm = () => {
-    setUserName("");
-    setUserEmail("");
-    setUserRole("user");
-    setUserStatus("active");
+    setUserName('');
+    setUserEmail('');
+    setUserRole('USER');
+    setUserStatus('active');
     setSelectedUser(null);
   };
-  
-  const handleCreateUser = () => {
-    // In a real app, this would make an API call
-    toast({
-      title: "User created",
-      description: `User ${userName} has been created successfully.`,
-    });
-    setIsCreateDialogOpen(false);
-    resetForm();
+
+  const handleCreateUser = async () => {
+    try {
+      const newUser = await AuthService.createUser({
+        name: userName,
+        email: userEmail,
+        role: userRole,
+        status: userStatus,
+      });
+      setUsers((prev) => [...prev, { ...newUser, vehicleCount: 0, createdAt: new Date().toISOString() }]);
+      setTotalItems((prev) => prev + 1);
+      toast({
+        title: 'User created',
+        description: `User ${userName} has been created successfully.`,
+      });
+      setIsCreateDialogOpen(false);
+      resetForm();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.response?.data?.message || 'Failed to create user',
+        variant: 'destructive',
+      });
+    }
   };
-  
-  const handleEditUser = () => {
-    // In a real app, this would make an API call
-    toast({
-      title: "User updated",
-      description: `User ${selectedUser?.name} has been updated successfully.`,
-    });
-    setIsEditDialogOpen(false);
-    resetForm();
+
+  const handleEditUser = async () => {
+    if (!selectedUser) return;
+    try {
+      const updatedUser = await AuthService.updateUser(selectedUser.id, {
+        name: userName,
+        email: userEmail,
+        role: userRole,
+        status: userStatus,
+      });
+      setUsers((prev) =>
+        prev.map((user) =>
+          user.id === selectedUser.id
+            ? { ...updatedUser, vehicleCount: user.vehicleCount, createdAt: user.createdAt }
+            : user
+        )
+      );
+      toast({
+        title: 'User updated',
+        description: `User ${userName} has been updated successfully.`,
+      });
+      setIsEditDialogOpen(false);
+      resetForm();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.response?.data?.message || 'Failed to update user',
+        variant: 'destructive',
+      });
+    }
   };
-  
-  const handleDeleteUser = (user: ExtendedUser) => {
-    // In a real app, this would make an API call
-    toast({
-      title: "User deleted",
-      description: `User ${user.name} has been deleted.`,
-      variant: "destructive",
-    });
+
+  const handleDeleteUser = async (user: ExtendedUser) => {
+    try {
+      await AuthService.deleteUser(user.id);
+      setUsers((prev) => prev.filter((u) => u.id !== user.id));
+      setTotalItems((prev) => prev - 1);
+      toast({
+        title: 'User deleted',
+        description: `User ${user.name} has been deleted.`,
+        variant: 'destructive',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.response?.data?.message || 'Failed to delete user',
+        variant: 'destructive',
+      });
+    }
   };
-  
-  const handleToggleStatus = (user: ExtendedUser) => {
-    const newStatus = user.status === "active" ? "suspended" : "active";
-    // In a real app, this would make an API call
-    toast({
-      title: "Status updated",
-      description: `${user.name}'s account has been ${newStatus}.`,
-    });
+
+  const handleToggleStatus = async (user: ExtendedUser) => {
+    const newStatus = user.status === 'active' ? 'suspended' : 'active';
+    try {
+      const updatedUser = await AuthService.updateUser(user.id, { status: newStatus });
+      setUsers((prev) =>
+        prev.map((u) => (u.id === user.id ? { ...u, status: updatedUser.status } : u))
+      );
+      toast({
+        title: 'Status updated',
+        description: `${user.name}'s account has been ${newStatus}.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.response?.data?.message || 'Failed to update status',
+        variant: 'destructive',
+      });
+    }
   };
-  
+
   const openEditDialog = (user: ExtendedUser) => {
     setSelectedUser(user);
     setUserName(user.name);
     setUserEmail(user.email);
     setUserRole(user.role);
-    setUserStatus(user.status);
+    setUserStatus(user.status || 'active');
     setIsEditDialogOpen(true);
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "active":
-        return "text-green-600 bg-green-100";
-      case "suspended":
-        return "text-red-600 bg-red-100";
-      case "pending":
-        return "text-yellow-600 bg-yellow-100";
+      case 'active':
+        return 'text-green-600 bg-green-100';
+      case 'suspended':
+        return 'text-red-600 bg-red-100';
+      case 'pending':
+        return 'text-yellow-600 bg-yellow-100';
       default:
-        return "text-gray-600 bg-gray-100";
+        return 'text-gray-600 bg-gray-100';
     }
   };
 
@@ -237,11 +273,9 @@ const UserManagement: React.FC = () => {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">User Management</h1>
-            <p className="text-muted-foreground">
-              Manage user accounts and permissions
-            </p>
+            <p className="text-muted-foreground">Manage user accounts and permissions</p>
           </div>
-          
+
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
               <Button>
@@ -252,9 +286,7 @@ const UserManagement: React.FC = () => {
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Create New User</DialogTitle>
-                <DialogDescription>
-                  Add a new user to the parking management system.
-                </DialogDescription>
+                <DialogDescription>Add a new user to the parking management system.</DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4">
@@ -286,16 +318,16 @@ const UserManagement: React.FC = () => {
                   <Label htmlFor="userRole" className="text-right">
                     Role
                   </Label>
-                  <Select 
-                    value={userRole} 
-                    onValueChange={(value: "user" | "admin") => setUserRole(value)}
+                  <Select
+                    value={userRole}
+                    onValueChange={(value: 'USER' | 'ADMIN') => setUserRole(value)}
                   >
                     <SelectTrigger className="col-span-3">
                       <SelectValue placeholder="Select role" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="user">User</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="USER">User</SelectItem>
+                      <SelectItem value="ADMIN">Admin</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -303,9 +335,9 @@ const UserManagement: React.FC = () => {
                   <Label htmlFor="userStatus" className="text-right">
                     Status
                   </Label>
-                  <Select 
-                    value={userStatus} 
-                    onValueChange={(value: "active" | "suspended" | "pending") => setUserStatus(value)}
+                  <Select
+                    value={userStatus}
+                    onValueChange={(value: 'active' | 'suspended' | 'pending') => setUserStatus(value)}
                   >
                     <SelectTrigger className="col-span-3">
                       <SelectValue placeholder="Select status" />
@@ -327,15 +359,13 @@ const UserManagement: React.FC = () => {
             </DialogContent>
           </Dialog>
         </div>
-        
+
         <Card>
           <CardHeader className="pb-3">
             <div className="flex justify-between items-center">
               <div>
                 <CardTitle>Users</CardTitle>
-                <CardDescription>
-                  Manage all users in the parking management system
-                </CardDescription>
+                <CardDescription>Manage all users in the parking management system</CardDescription>
               </div>
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -344,13 +374,15 @@ const UserManagement: React.FC = () => {
                   placeholder="Search users..."
                   className="pl-8 w-[250px]"
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={onSearchChange}
                 />
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            {filteredUsers.length > 0 ? (
+            {isLoading ? (
+              <div className="flex justify-center py-12">Loading...</div>
+            ) : users.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -365,31 +397,36 @@ const UserManagement: React.FC = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedUsers.map((user) => (
+                  {users.map((user) => (
                     <TableRow key={user.id}>
-                      <TableCell className="font-medium">
-                        {user.name}
-                      </TableCell>
+                      <TableCell className="font-medium">{user.name}</TableCell>
                       <TableCell>{user.email}</TableCell>
                       <TableCell>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          user.role === "admin" ? "bg-purple-100 text-purple-600" : "bg-blue-100 text-blue-600"
-                        }`}>
-                          {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            user.role === 'ADMIN' ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600'
+                          }`}
+                        >
+                          {user.role.charAt(0).toUpperCase() + user.role.slice(1).toLowerCase()}
                         </span>
                       </TableCell>
                       <TableCell>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(user.status)}`}>
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
+                            user.status || 'active'
+                          )}`}
+                        >
                           {user.status.charAt(0).toUpperCase() + user.status.slice(1)}
                         </span>
                       </TableCell>
-                      <TableCell>{user.vehicleCount}</TableCell>
-                      <TableCell>{new Date(user.createdAt).toLocaleDateString()}</TableCell>
+                      <TableCell>{user.vehicleCount || 0}</TableCell>
                       <TableCell>
-                        {user.lastLogin 
-                          ? new Date(user.lastLogin).toLocaleDateString()
-                          : "Never"
-                        }
+                        {user.createdAt
+                          ? new Date(user.createdAt).toLocaleDateString()
+                          : 'N/A'}
+                      </TableCell>
+                      <TableCell>
+                        {user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'Never'}
                       </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
@@ -404,9 +441,9 @@ const UserManagement: React.FC = () => {
                               Edit
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleToggleStatus(user)}>
-                              {user.status === "active" ? "Suspend" : "Activate"}
+                              {user.status === 'active' ? 'Suspend' : 'Activate'}
                             </DropdownMenuItem>
-                            <DropdownMenuItem 
+                            <DropdownMenuItem
                               className="text-red-600"
                               onClick={() => handleDeleteUser(user)}
                             >
@@ -425,8 +462,8 @@ const UserManagement: React.FC = () => {
                 <h3 className="text-lg font-medium">No users found</h3>
                 <p className="text-sm text-muted-foreground mb-4">
                   {searchTerm
-                    ? "No users match your search criteria."
-                    : "No users have been added to the system yet."}
+                    ? 'No users match your search criteria.'
+                    : 'No users have been added to the system yet.'}
                 </p>
                 {!searchTerm && (
                   <Button onClick={() => setIsCreateDialogOpen(true)}>
@@ -436,33 +473,33 @@ const UserManagement: React.FC = () => {
                 )}
               </div>
             )}
-            
-            {filteredUsers.length > 0 && totalPages > 1 && (
+
+            {users.length > 0 && totalPages > 1 && (
               <div className="mt-4 flex justify-center">
                 <Pagination>
                   <PaginationContent>
                     <PaginationItem>
-                      <PaginationPrevious 
-                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                        className={currentPage <= 1 ? "pointer-events-none opacity-50" : ""}
+                      <PaginationPrevious
+                        onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                        className={currentPage <= 1 ? 'pointer-events-none opacity-50' : ''}
                       />
                     </PaginationItem>
-                    
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                       <PaginationItem key={page}>
-                        <PaginationLink 
-                          isActive={currentPage === page} 
+                        <PaginationLink
+                          isActive={currentPage === page}
                           onClick={() => setCurrentPage(page)}
                         >
                           {page}
                         </PaginationLink>
                       </PaginationItem>
                     ))}
-                    
+
                     <PaginationItem>
-                      <PaginationNext 
-                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                        className={currentPage >= totalPages ? "pointer-events-none opacity-50" : ""}
+                      <PaginationNext
+                        onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                        className={currentPage >= totalPages ? 'pointer-events-none opacity-50' : ''}
                       />
                     </PaginationItem>
                   </PaginationContent>
@@ -472,15 +509,12 @@ const UserManagement: React.FC = () => {
           </CardContent>
         </Card>
       </div>
-      
-      {/* Edit User Dialog */}
+
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit User</DialogTitle>
-            <DialogDescription>
-              Update user information and permissions.
-            </DialogDescription>
+            <DialogDescription>Update user information and permissions.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
@@ -510,16 +544,16 @@ const UserManagement: React.FC = () => {
               <Label htmlFor="edit-userRole" className="text-right">
                 Role
               </Label>
-              <Select 
-                value={userRole} 
-                onValueChange={(value: "user" | "admin") => setUserRole(value)}
+              <Select
+                value={userRole}
+                onValueChange={(value: 'USER' | 'ADMIN') => setUserRole(value)}
               >
                 <SelectTrigger className="col-span-3">
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="user">User</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="USER">User</SelectItem>
+                  <SelectItem value="ADMIN">Admin</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -527,9 +561,9 @@ const UserManagement: React.FC = () => {
               <Label htmlFor="edit-userStatus" className="text-right">
                 Status
               </Label>
-              <Select 
-                value={userStatus} 
-                onValueChange={(value: "active" | "suspended" | "pending") => setUserStatus(value)}
+              <Select
+                value={userStatus}
+                onValueChange={(value: 'active' | 'suspended' | 'pending') => setUserStatus(value)}
               >
                 <SelectTrigger className="col-span-3">
                   <SelectValue placeholder="Select status" />
