@@ -1,6 +1,6 @@
-// parking.service.ts
 import { ParkingSlot, SlotRequest, SlotRequestFormData, PaginatedResponse } from '../types/parking';
 import { authorizedAPI } from './api';
+
 export const ParkingService = {
   // Parking Slot Services
   async getSlots(
@@ -48,8 +48,8 @@ export const ParkingService = {
   },
 
   async updateSlot(id: string, slotData: Partial<ParkingSlot>): Promise<ParkingSlot> {
-    const response = await authorizedAPI.put(`/parking-slots/${id}`, slotData);
-    return response.data.data;
+    const response = await authorizedAPI.get(`/parking-slots/${id}`);
+    return response.data;
   },
 
   async deleteSlot(id: string): Promise<void> {
@@ -59,7 +59,7 @@ export const ParkingService = {
   // Slot Request Services
   async getSlotRequests(
     page = 1,
-    limit = 10, 
+    limit = 10,
     search?: string,
     status?: string | boolean
   ): Promise<PaginatedResponse<SlotRequest>> {
@@ -80,7 +80,7 @@ export const ParkingService = {
 
   async updateSlotRequest(id: string, requestData: Partial<SlotRequestFormData>): Promise<SlotRequest> {
     const response = await authorizedAPI.put(`/slot-requests/${id}`, requestData);
-    return response.data.data.data;
+    return response.data.data;
   },
 
   async deleteSlotRequest(id: string): Promise<void> {
@@ -89,14 +89,24 @@ export const ParkingService = {
 
   async approveSlotRequest(id: string, slotId?: string): Promise<SlotRequest> {
     const response = await authorizedAPI.put(`/slot-requests/${id}/approve`, { slotId });
-    console.log(response.data.data);
-    
-    return ;
     return response.data.data;
   },
 
   async rejectSlotRequest(id: string, reason?: string): Promise<SlotRequest> {
     const response = await authorizedAPI.put(`/slot-requests/${id}/reject`, { reason });
     return response.data.data;
+  },
+
+  // New method to get rejection reason by slot request ID
+  async getRejectionReasonBySlotRequestId(id: string): Promise<string | null> {
+    // Purpose: Fetch the rejection reason for a slot request by its ID.
+    // Why: Allows the frontend to dynamically retrieve the rejection reason when the user clicks "View Reason",
+    // ensuring the latest reason from the backend is displayed.
+    try {
+      const response = await authorizedAPI.get(`/slot-requests/${id}/reason`);
+      return response.data.data.rejectionReason;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.error || 'Failed to fetch rejection reason');
+    }
   },
 };

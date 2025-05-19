@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from "react";
 import AppLayout from "../components/layouts/AppLayout";
 import { Button } from "../components/ui/button";
@@ -214,12 +213,9 @@ const SlotRequests: React.FC = () => {
     if (!isAdmin || !isApproveDialogOpen) return;
     setIsSlotsLoading(true);
     try {
-      // Use getParkingSlots instead of getSlots
-      const response = await ParkingService.getSlots(1, 100, undefined, true);
-      console.log("ParkingService.getParkingSlots response:", response.data.items);
+      const response = await ParkingService.getSlots(1, 100, undefined, undefined, undefined, true);
+      console.log("ParkingService.getSlots response:", response);
       const slots = response.data.items ?? [];
-      console.log(slots);
-      
       setAvailableSlots(slots);
       if (slots.length === 0) {
         toast({
@@ -230,7 +226,8 @@ const SlotRequests: React.FC = () => {
       }
     } catch (err: any) {
       console.error("fetchAvailableSlots error:", err);
-      const errorMessage = err.response?.data?.message || "Failed to fetch available slots";
+      const errorMessage =
+        err.response?.data?.message || "Failed to fetch available slots";
       setAvailableSlots([]);
       toast({
         title: "Error",
@@ -241,7 +238,6 @@ const SlotRequests: React.FC = () => {
       setIsSlotsLoading(false);
     }
   }, [isAdmin, isApproveDialogOpen]);
-  
 
   useEffect(() => {
     fetchSlotRequests();
@@ -416,6 +412,26 @@ const SlotRequests: React.FC = () => {
       toast({
         title: "Error",
         description: errorMessage,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // New handler for viewing rejection reason
+  const handleViewRejectionReason = async (slotRequestId: string) => {
+    // Purpose: Fetch and display the rejection reason for a slot request when the "View Reason" button is clicked.
+    // Why: Dynamically retrieves the reason from the backend to ensure the latest data is shown,
+    // improving reliability over using cached rejectionReason from the SlotRequest object.
+    try {
+      const reason = await ParkingService.getRejectionReasonBySlotRequestId(slotRequestId);
+      toast({
+        title: "Rejection Reason",
+        description: reason || "No reason provided",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to fetch rejection reason",
         variant: "destructive",
       });
     }
@@ -755,14 +771,7 @@ const SlotRequests: React.FC = () => {
                                 variant="outline"
                                 size="sm"
                                 className="text-red-600"
-                                onClick={() => {
-                                  toast({
-                                    title: "Rejection reason",
-                                    description:
-                                      request.rejectionReason ||
-                                      "No reason provided",
-                                  });
-                                }}
+                                onClick={() => handleViewRejectionReason(request.id)}
                               >
                                 View Reason
                               </Button>
@@ -1010,27 +1019,27 @@ const SlotRequests: React.FC = () => {
                     </div>
                   ) : (
                     <Select
-                    value={assignedSlotId}
-                    onValueChange={setAssignedSlotId}
-                    disabled={isSlotsLoading}
-                  >
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Select a parking slot" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableSlots.length > 0 ? (
-                        availableSlots.map((slot) => (
-                          <SelectItem key={slot.id} value={slot.id}>
-                            Slot {slot.slotNumber} - {slot.location} ({slot.vehicleType})
+                      value={assignedSlotId}
+                      onValueChange={setAssignedSlotId}
+                      disabled={isSlotsLoading || availableSlots.length === 0}
+                    >
+                      <SelectTrigger className="col-span-3">
+                        <SelectValue placeholder="Select a parking slot" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableSlots.length > 0 ? (
+                          availableSlots.map((slot) => (
+                            <SelectItem key={slot.id} value={slot.id}>
+                              {slot.slotNumber} ({slot.vehicleType})
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="none" disabled>
+                            No available slots
                           </SelectItem>
-                        ))
-                      ) : (
-                        <SelectItem value="none" disabled>
-                          No available slots
-                        </SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
+                        )}
+                      </SelectContent>
+                    </Select>
                   )}
                 </div>
               </div>
