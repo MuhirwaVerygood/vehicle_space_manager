@@ -1,113 +1,154 @@
-
-import React from "react";
-import AppLayout from "../components/layouts/AppLayout";
-import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
+import React, { useEffect, useState } from 'react';
+import AppLayout from '../components/layouts/AppLayout';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "../components/ui/card";
+} from '../components/ui/card';
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-} from "../components/ui/tabs";
-import { Label } from "../components/ui/label";
-import { Switch } from "../components/ui/switch";
-import { useToast } from "../hooks/use-toast";
-import { useAuth } from "../contexts/AuthContext";
+} from '../components/ui/tabs';
+import { Label } from '../components/ui/label';
+import { Switch } from '../components/ui/switch';
+import { useToast } from '../hooks/use-toast';
+import { useAuth } from '../contexts/AuthContext';
+import { AuthService } from '@/services/auth.service';
 
 const Settings: React.FC = () => {
   const { toast } = useToast();
-  const { authState, updateProfile, updatePassword } = useAuth();
-  
+  const { authState, setAuthState } = useAuth();
+
   // Profile state
-  const [name, setName] = React.useState(authState.user?.name || "");
-  const [email, setEmail] = React.useState(authState.user?.email || "");
-  const [isSubmitting, setIsSubmitting] = React.useState(false);
-  
+  const [name, setName] = useState(authState.user?.name || '');
+  const [email, setEmail] = useState(authState.user?.email || '');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   // Password state
-  const [currentPassword, setCurrentPassword] = React.useState("");
-  const [newPassword, setNewPassword] = React.useState("");
-  const [confirmPassword, setConfirmPassword] = React.useState("");
-  const [isChangingPassword, setIsChangingPassword] = React.useState(false);
-  
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
   // Notification settings
-  const [emailNotifications, setEmailNotifications] = React.useState(true);
-  const [requestApprovals, setRequestApprovals] = React.useState(true);
-  const [systemUpdates, setSystemUpdates] = React.useState(false);
-  
+  const [emailNotifications, setEmailNotifications] = useState(true);
+  const [requestApprovals, setRequestApprovals] = useState(true);
+  const [systemUpdates, setSystemUpdates] = useState(false);
+
   // Update profile when user data changes
-  React.useEffect(() => {
+  useEffect(() => {
     if (authState.user) {
       setName(authState.user.name);
       setEmail(authState.user.email);
     }
   }, [authState.user]);
-  
+
+  // Load notification settings from localStorage
+  useEffect(() => {
+    const savedSettings = localStorage.getItem('notificationSettings');
+    if (savedSettings) {
+      const { emailNotifications, requestApprovals, systemUpdates } = JSON.parse(savedSettings);
+      setEmailNotifications(emailNotifications);
+      setRequestApprovals(requestApprovals);
+      setSystemUpdates(systemUpdates);
+    }
+  }, []);
+
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
-    
-    try {
-      await updateProfile({ name, email });
+    if (!authState.user?.id) {
       toast({
-        title: "Profile updated",
-        description: "Your profile information has been updated successfully.",
+        title: 'Error',
+        description: 'User not authenticated.',
+        variant: 'destructive',
       });
-    } catch (error) {
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const updatedUser = await AuthService.updateProfile(authState.user.id, { name, email });
+      // Update authState to reflect changes
+      setAuthState((prev) => ({
+        ...prev,
+        user: { ...prev.user!, name: updatedUser.name, email: updatedUser.email },
+      }));
       toast({
-        title: "Update failed",
-        description: "There was a problem updating your profile.",
-        variant: "destructive",
+        title: 'Profile updated',
+        description: 'Your profile information has been updated successfully.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Update failed',
+        description: error.response?.data?.message || 'There was a problem updating your profile.',
+        variant: 'destructive',
       });
     } finally {
       setIsSubmitting(false);
     }
   };
-  
+
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (newPassword !== confirmPassword) {
       toast({
-        title: "Passwords do not match",
-        description: "New password and confirm password must match.",
-        variant: "destructive",
+        title: 'Passwords do not match',
+        description: 'New password and confirm password must match.',
+        variant: 'destructive',
       });
       return;
     }
-    
-    setIsChangingPassword(true);
-    
-    try {
-      await updatePassword({ currentPassword, newPassword });
+
+    if (!authState.user?.id) {
       toast({
-        title: "Password updated",
-        description: "Your password has been changed successfully.",
+        title: 'Error',
+        description: 'User not authenticated.',
+        variant: 'destructive',
       });
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-    } catch (error) {
+      return;
+    }
+
+    setIsChangingPassword(true);
+
+    try {
+      await AuthService.updatePassword(authState.user.id, { currentPassword, newPassword });
       toast({
-        title: "Update failed",
-        description: "There was a problem updating your password.",
-        variant: "destructive",
+        title: 'Password updated',
+        description: 'Your password has been changed successfully.',
+      });
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (error: any) {
+      toast({
+        title: 'Update failed',
+        description: error.response?.data?.message || 'There was a problem updating your password.',
+        variant: 'destructive',
       });
     } finally {
       setIsChangingPassword(false);
     }
   };
-  
+
   const handleUpdateNotifications = () => {
+    // Save to localStorage (temporary until backend endpoint is available)
+    const settings = { emailNotifications, requestApprovals, systemUpdates };
+    localStorage.setItem('notificationSettings', JSON.stringify(settings));
+
+    // Placeholder for future API call
+    // await AuthService.updateNotificationSettings(authState.user.id, settings);
+
     toast({
-      title: "Notification settings updated",
-      description: "Your notification preferences have been saved.",
+      title: 'Notification settings updated',
+      description: 'Your notification preferences have been saved.',
     });
   };
 
@@ -116,25 +157,27 @@ const Settings: React.FC = () => {
       <div className="space-y-6 animate-fade-in">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-          <p className="text-muted-foreground">
-            Manage your account settings and preferences
-          </p>
+          <p className="text-muted-foreground">Manage your account settings and preferences</p>
         </div>
-        
+
         <Tabs defaultValue="profile" className="w-full">
           <TabsList className="w-full max-w-md mb-4">
-            <TabsTrigger value="profile" className="flex-1">Profile</TabsTrigger>
-            <TabsTrigger value="password" className="flex-1">Password</TabsTrigger>
-            <TabsTrigger value="notifications" className="flex-1">Notifications</TabsTrigger>
+            <TabsTrigger value="profile" className="flex-1">
+              Profile
+            </TabsTrigger>
+            <TabsTrigger value="password" className="flex-1">
+              Password
+            </TabsTrigger>
+            <TabsTrigger value="notifications" className="flex-1">
+              Notifications
+            </TabsTrigger>
           </TabsList>
-          
+
           <TabsContent value="profile">
             <Card>
               <CardHeader>
                 <CardTitle>Profile</CardTitle>
-                <CardDescription>
-                  Update your personal information
-                </CardDescription>
+                <CardDescription>Update your personal information</CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleUpdateProfile} className="space-y-4">
@@ -158,20 +201,18 @@ const Settings: React.FC = () => {
                     />
                   </div>
                   <Button type="submit" className="w-full" disabled={isSubmitting}>
-                    {isSubmitting ? "Updating..." : "Update Profile"}
+                    {isSubmitting ? 'Updating...' : 'Update Profile'}
                   </Button>
                 </form>
               </CardContent>
             </Card>
           </TabsContent>
-          
+
           <TabsContent value="password">
             <Card>
               <CardHeader>
                 <CardTitle>Change Password</CardTitle>
-                <CardDescription>
-                  Update your password to keep your account secure
-                </CardDescription>
+                <CardDescription>Update your password to keep your account secure</CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleUpdatePassword} className="space-y-4">
@@ -208,20 +249,18 @@ const Settings: React.FC = () => {
                     />
                   </div>
                   <Button type="submit" className="w-full" disabled={isChangingPassword}>
-                    {isChangingPassword ? "Updating..." : "Change Password"}
+                    {isChangingPassword ? 'Updating...' : 'Change Password'}
                   </Button>
                 </form>
               </CardContent>
             </Card>
           </TabsContent>
-          
+
           <TabsContent value="notifications">
             <Card>
               <CardHeader>
                 <CardTitle>Notification Settings</CardTitle>
-                <CardDescription>
-                  Manage how you receive notifications
-                </CardDescription>
+                <CardDescription>Manage how you receive notifications</CardDescription>
               </CardHeader>
               <CardContent>
                 <form className="space-y-4">
@@ -264,11 +303,7 @@ const Settings: React.FC = () => {
                       onCheckedChange={setSystemUpdates}
                     />
                   </div>
-                  <Button 
-                    type="button" 
-                    className="w-full" 
-                    onClick={handleUpdateNotifications}
-                  >
+                  <Button type="button" className="w-full" onClick={handleUpdateNotifications}>
                     Save Notification Preferences
                   </Button>
                 </form>

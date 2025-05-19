@@ -10,6 +10,7 @@ interface AuthContextType {
   logout: () => void;
   updateProfile: (userData: Partial<User>) => Promise<void>;
   updatePassword: (passwords: { currentPassword: string; newPassword: string }) => Promise<void>;
+   setAuthState: React.Dispatch<React.SetStateAction<AuthState>>
 }
 
 const initialState: AuthState = {
@@ -205,6 +206,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     login,
     register,
     logout,
+    setAuthState,
     updateProfile,
     updatePassword,
   };
