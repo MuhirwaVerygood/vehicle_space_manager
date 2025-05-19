@@ -99,11 +99,10 @@ export const ParkingService = {
 
   // New method to get rejection reason by slot request ID
   async getRejectionReasonBySlotRequestId(id: string): Promise<string | null> {
-    // Purpose: Fetch the rejection reason for a slot request by its ID.
-    // Why: Allows the frontend to dynamically retrieve the rejection reason when the user clicks "View Reason",
-    // ensuring the latest reason from the backend is displayed.
     try {
       const response = await authorizedAPI.get(`/slot-requests/${id}/reason`);
+      console.log(response.data);
+      
       return response.data.data.rejectionReason;
     } catch (error: any) {
       throw new Error(error.response?.data?.error || 'Failed to fetch rejection reason');

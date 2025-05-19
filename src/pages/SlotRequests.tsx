@@ -419,9 +419,6 @@ const SlotRequests: React.FC = () => {
 
   // New handler for viewing rejection reason
   const handleViewRejectionReason = async (slotRequestId: string) => {
-    // Purpose: Fetch and display the rejection reason for a slot request when the "View Reason" button is clicked.
-    // Why: Dynamically retrieves the reason from the backend to ensure the latest data is shown,
-    // improving reliability over using cached rejectionReason from the SlotRequest object.
     try {
       const reason = await ParkingService.getRejectionReasonBySlotRequestId(slotRequestId);
       toast({
